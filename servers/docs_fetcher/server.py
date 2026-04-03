@@ -3,7 +3,7 @@ import re
 import httpx
 from pathlib import Path
 from bs4 import BeautifulSoup
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 mcp = FastMCP("docs_fetcher")
 

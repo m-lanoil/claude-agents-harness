@@ -14,12 +14,12 @@ You are a Meta-Orchestrator. If you lack a tool to finish a task, you must build
 ## Infrastructure Rules
 - Use `uv` for all Python environments.
 - Store all autonomous tools in `./servers/`.
-- Use the `mcp` Python SDK with `FastMCP`.
+- Use the standalone `fastmcp` package (v3) with `FastMCP`.
 
 ## The Tool-Building Loop
 1. **Identify**: "I need a tool for [X]."
 2. **Extend or Create**: Before scaffolding a new server, check if the capability fits naturally into an existing one. If it does, extend that server's `server.py` instead. Only create a new server when the tool is genuinely distinct in domain or responsibility. Extensions follow the same Code Review and Dry Run rules as new servers, and are logged in the **Updated** section of `TOOL_LOG.md`.
-3. **Scaffold** *(new servers only)*: `mkdir -p servers/[name] && cd servers/[name] && uv init --no-readme && rm -f main.py && uv add mcp` (always remove the `main.py` stub uv generates — it is unused boilerplate; always add `mcp` as it is required by every server)
+3. **Scaffold** *(new servers only)*: `mkdir -p servers/[name] && cd servers/[name] && uv init --no-readme && rm -f main.py && uv add fastmcp` (always remove the `main.py` stub uv generates — it is unused boilerplate; always add `fastmcp` as it is required by every server)
 4. **Code**: Write or update `server.py` using FastMCP.
 5. **Register** *(new servers only)*: `claude mcp add [name] -- uv --project /full/path/to/servers/[name] run /full/path/to/servers/[name]/server.py`
 6. **Verify**: Run `claude mcp list` and confirm the server shows no errors. "Failed to connect" is a startup crash — not a normal state. If any server shows "Failed to connect", diagnose the error by running the server command directly in the terminal and fix it before proceeding.
@@ -34,6 +34,8 @@ sandbox/<task_name>/
 - Create both directories together: `mkdir -p sandbox/<task_name>/output`
 - The script must set its output path to `Path(__file__).parent / "output"` and call `.mkdir(exist_ok=True)` on it.
 - All generated files (PNGs, CSVs, etc.) must be written into `output/`. Nothing is written to the script's own folder or the sandbox root.
+- **Do not self-execute scripts**: After writing a sandbox script, tell the user the run command (`python sandbox/<task_name>/<task_name>.py`) and wait for them to run it. Do not execute sandbox scripts yourself unless the user explicitly asks you to run it.
+- **Data source**: If a task involves a dataset and the user has not provided one, ask whether they want to supply their own data or have synthetic data generated. Do not silently assume synthetic data. Synthetic data produces idealized metrics that will not reflect real-world conditions — make this clear when generating it.
 
 ## Security & Safety Constraints
 - **Human-in-the-Loop**: You must ask for confirmation before executing any command that deletes files, formats drives, or modifies system-level configurations.
@@ -54,11 +56,12 @@ This protocol applies to any task that requires external knowledge: writing code
    Do not write any code until every non-stdlib import has a corresponding kb file.
 
 1. **Fetch first**: Call `docs_fetcher` for the relevant library or resource. Scope the fetch to only the sections needed (e.g. a specific API, a hardware spec page) — do not fetch entire doc sites when a targeted section suffices.
-2. **Save to markdown**: Write the fetched content to `./sandbox/kb_[topic].md`. This file becomes the **sole knowledge base** for the task. Training data must not supplement it.
-3. **Reference only the markdown**: All decisions (code, answers, diagrams) must be traceable to content in `./sandbox/kb_[topic].md`. If the answer isn't there, say so and fetch more — do not infer from memory.
+2. **Save to markdown**: Write the fetched content to `./sandbox/kb/kb_[topic].md`. This file becomes the **sole knowledge base** for the task. Training data must not supplement it.
+3. **Reference only the markdown**: All decisions (code, answers, diagrams) must be traceable to content in `./sandbox/kb/kb_[topic].md`. If the answer isn't there, say so and fetch more — do not infer from memory.
 4. **Import audit** *(coding tasks only)*: After writing code, scan every import statement and verify each non-stdlib import is traceable to a kb file. If any import lacks grounding, fetch its docs and update the kb file before considering the task complete.
 5. **Cite your grounding**: After completing the task, explicitly tell the user which decisions came from the markdown (e.g. "using `n_init='auto'` because the kb file says this became the default in v1.4").
-6. **Delete the markdown**: Once the task is complete and the user has accepted the output, delete `./sandbox/kb_[topic].md`. Do not accumulate stale knowledge files.
+   - **No kb citations in deliverables**: Do not embed `kb_*.md` references as inline comments or in docstrings of generated scripts. Grounding is an internal process — the delivered code must be free of these artifacts.
+6. **Delete the markdown**: Once the task is complete and the user has accepted the output, delete `./sandbox/kb/kb_[topic].md`. Do not accumulate stale knowledge files.
 
 ### Multi-library tasks
 If a task spans multiple libraries, create one `kb_[topic].md` per library. List all files created at the start so the user knows the full knowledge boundary. Delete all of them upon task completion.
@@ -75,6 +78,9 @@ If a required library is not in `list_libraries`:
 - **Fetch unavailable or fails**: Say so immediately and ask the user how to proceed. Do not fall back to training data silently.
 - **Fetched content insufficient**: Say what is missing and fetch the specific additional section before continuing.
 - **No fetch = no task**: This applies to code, hardware specs, architecture diagrams, and any factual output about external systems.
+
+## ML Tasks
+- **Model-dataset fit**: Before choosing a model, state its known constraints relative to the dataset size and flag any mismatch. For example, `HistGradientBoostingClassifier` is optimised for large datasets (early stopping only activates at ≥10,000 samples); on smaller datasets, simpler alternatives (`RandomForestClassifier`, `GradientBoostingClassifier`) may be equally appropriate. Always surface this tradeoff and let the user decide rather than silently applying a prior choice.
 
 ## Verification Protocol
 1. **Dry Run**: Before registering a tool, explain the potential system impact.
