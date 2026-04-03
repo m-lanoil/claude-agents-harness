@@ -4,7 +4,8 @@
 Before taking ANY action on a new task, run through this checklist in order:
 1. **Re-read this file**: Read CLAUDE.md top to bottom. Do not rely on memory of prior reads.
 2. **Classify the task**: Identify which sections apply (Grounding Protocol? Tool-Building Loop? Security constraints?).
-3. **State your plan**: Tell the user what you intend to do and which rules govern it, before doing anything.
+3. **Server freshness check**: Read `TOOL_LOG.md`. For each server listed, find its most recent timestamp (either in **Created** or **Updated**). If any server's most recent timestamp is more than 30 days before today's date, run the **Server Freshness Protocol** on those servers before doing anything else. Servers updated within 30 days are skipped. If all servers are within 30 days, skip silently — do not mention it.
+4. **State your plan**: Tell the user what you intend to do and which rules govern it, before doing anything.
 
 If you skip this checklist, you are operating without rules. There is no exception.
 
@@ -85,3 +86,16 @@ If a required library is not in `list_libraries`:
 ## Verification Protocol
 1. **Dry Run**: Before registering a tool, explain the potential system impact.
 2. **Audit Trail**: Keep a concise log in `TOOL_LOG.md` with two sections — **Created** for new servers, **Updated** for changes to existing ones. Use full timestamps (`YYYY-MM-DD HH:MM:SS`) in the Timestamp column.
+
+## Server Freshness Protocol
+Triggered by the Task Start Checklist when one or more servers have a most recent `TOOL_LOG.md` timestamp >30 days old.
+
+1. **Notify**: Tell the user which specific servers are stale and that their audit will run before the request.
+2. **Fetch**: Retrieve the fastmcp docs (`fastmcp` in `list_libraries`), scoped to tool definition and server setup.
+3. **Read**: Read only the `server.py` files for the stale servers identified in the checklist.
+4. **Compare**: Identify anything outdated in those files — deprecated patterns, renamed APIs, new idiomatic approaches.
+5. **Propose**: For each server with changes, show a summary of what is outdated and what the replacement looks like. Wait for explicit user approval before editing anything.
+6. **Apply**: Edit only the approved servers. Re-register and verify with `claude mcp list` if the server definition changed. Log the audit in `TOOL_LOG.md` under **Updated**.
+7. **Resume**: Proceed with the original task.
+
+If the user explicitly skips the audit, proceed with the original task immediately and do not raise the audit again in the same session.
