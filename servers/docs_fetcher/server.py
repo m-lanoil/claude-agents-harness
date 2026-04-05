@@ -8,6 +8,8 @@ from fastmcp import FastMCP
 mcp = FastMCP("docs_fetcher")
 
 LIBRARIES_PATH = Path(__file__).parent / "libraries.json"
+CLIS_PATH = Path(__file__).parent / "clis.json"
+OTHER_SOURCES_PATH = Path(__file__).parent / "other_sources.json"
 
 # Session-scoped in-memory cache: URL -> raw HTML
 _cache: dict[str, str] = {}
@@ -25,6 +27,26 @@ def _save_libraries(libs: dict) -> None:
 
 def _all_libraries() -> dict:
     return _load_libraries()
+
+
+def _load_clis() -> dict:
+    if CLIS_PATH.exists():
+        return json.loads(CLIS_PATH.read_text())
+    return {}
+
+
+def _save_clis(clis: dict) -> None:
+    CLIS_PATH.write_text(json.dumps(clis, indent=2))
+
+
+def _load_other_sources() -> dict:
+    if OTHER_SOURCES_PATH.exists():
+        return json.loads(OTHER_SOURCES_PATH.read_text())
+    return {}
+
+
+def _save_other_sources(sources: dict) -> None:
+    OTHER_SOURCES_PATH.write_text(json.dumps(sources, indent=2))
 
 
 def _fetch_html(url: str) -> str | dict:
@@ -82,6 +104,56 @@ def add_library(name: str, url: str) -> dict:
     libs[name] = url
     _save_libraries(libs)
 
+    return {action: True, "name": name, "url": url}
+
+
+@mcp.tool()
+def list_clis() -> dict:
+    """List all registered CLI tool documentation sources."""
+    return {"clis": _load_clis()}
+
+
+@mcp.tool()
+def add_cli(name: str, url: str) -> dict:
+    """
+    Save a CLI tool documentation URL so it can be referenced by name in future sessions.
+
+    Args:
+        name: Short key to reference this CLI (e.g. 'git', 'macos_cli').
+        url: Base documentation URL (must be https).
+    """
+    if not url.startswith("https://"):
+        return {"error": "Only https:// URLs are permitted."}
+    name = name.lower().strip()
+    clis = _load_clis()
+    action = "updated" if name in clis else "saved"
+    clis[name] = url
+    _save_clis(clis)
+    return {action: True, "name": name, "url": url}
+
+
+@mcp.tool()
+def list_other_sources() -> dict:
+    """List all registered other reference sources (e.g. Apple support pages)."""
+    return {"other_sources": _load_other_sources()}
+
+
+@mcp.tool()
+def add_other_source(name: str, url: str) -> dict:
+    """
+    Save a reference source URL so it can be referenced by name in future sessions.
+
+    Args:
+        name: Short key to reference this source (e.g. 'apple_activity_monitor_cpu').
+        url: Documentation URL (must be https).
+    """
+    if not url.startswith("https://"):
+        return {"error": "Only https:// URLs are permitted."}
+    name = name.lower().strip()
+    sources = _load_other_sources()
+    action = "updated" if name in sources else "saved"
+    sources[name] = url
+    _save_other_sources(sources)
     return {action: True, "name": name, "url": url}
 
 
