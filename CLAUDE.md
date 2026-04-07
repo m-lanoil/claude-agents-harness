@@ -1,24 +1,24 @@
 # Meta-Agent Rules
 
 ## Task Start Checklist
-Before taking ANY action on a new task, run through this checklist in order:
+Before taking ANY action on a new task, run through this checklist in order. **This checklist is a summary — the sections below are authoritative. Use the checklist to confirm what applies; use the full sections to execute.**
 1. **Classify the task**: Identify which sections apply (Grounding Protocol? Tool-Building Loop? Infrastructure Rules? Sandbox? Security constraints? ML Tasks? Verification Protocol?). Standing rules regardless of task type: if a required tool doesn't exist, building it is mandatory (see Role section); if the task involves writing any code, Grounding Protocol always applies.
-2. **Active rules check**: This is a summary — the sections below are authoritative. For each section identified in step 1, confirm the following before acting:
+2. **Active rules check**: For each section identified in step 1, confirm the following before acting:
    - **Grounding — after writing code** *(full workflow: Grounding Protocol section)*:
      - Re-scan every import and every shell command string. Verify each traces to a kb file. If anything is ungrounded, fetch and update the kb before the task is complete.
      - Cite your grounding: tell the user which decisions came from the kb file.
      - Delete kb files only after the user has accepted the output.
    - **Grounding — multi-library tasks** *(full rules: Grounding Protocol → Multi-library tasks)*: Create one kb file per library. List all kb files at the start of the task. Delete all of them on completion.
-   - **Grounding — unregistered libraries** *(full rules: Grounding Protocol → Library URL discovery)*: Propose the URL and wait for approval before fetching. After task completion, call `add_library(name, url)` to register it. Do not silently use `fetch_url`.
+   - **Grounding — unregistered libraries** *(full rules: Grounding Protocol → Library URL discovery)*: Propose the URL and wait for approval before fetching. After task completion, register it in the correct store (library → `add_library`, CLI → `add_cli`, other → `add_other_source`). Do not silently use `fetch_url`.
    - **Infrastructure Rules** *(full rules: Infrastructure Rules section)*: Use `uv` for all Python environments. Store tools in `./servers/`. Use `fastmcp` (v3) with `FastMCP`.
-   - **Tool-Building Loop** *(full workflow: The Tool-Building Loop section)*: Extend an existing server before creating a new one. After writing or modifying `server.py`, summarize what the code does and wait for explicit user approval before running `claude mcp add`.
+   - **Tool-Building Loop** *(full workflow: The Tool-Building Loop section)*: Extend an existing server before creating a new one. After writing or modifying `server.py` (whether new server or extension), summarize what the code does and wait for explicit user approval before running `claude mcp add`.
    - **Sandbox** *(full rules: Sandbox Script Structure section)*: Scripts go in `./sandbox/<task_name>/`. Do not self-execute scripts — provide the run command and wait. If the task involves a dataset and the user has not provided one, ask whether they want real or synthetic data before proceeding.
    - **Security** *(full rules: Security & Safety Constraints section)*: Confirm before any delete, format, or system-level command. Read-only default for system tools. Verify packages are well-known before running `uv add` or `pip install`.
    - **ML Tasks** *(full rules: ML Tasks section)*: State model-dataset size tradeoffs before choosing a model. Let the user decide.
    - **Verification Protocol** *(full rules: Verification Protocol section)*: Before registering any tool, explain the potential system impact (Dry Run). Log every new server under **Created**, every change under **Updated**, and every audit under **Audited** in `TOOL_LOG.md`.
 3. **Server freshness check**: Read `TOOL_LOG.md`. For each server listed, find its most recent entry in the **Audited** section. If a server has no audit entry, use its **Created** timestamp as the baseline. If that date is more than 30 days before today's date, run the **Server Freshness Protocol** on those servers before doing anything else. Servers with a recent audit (or creation) within 30 days are skipped. If all servers are within 30 days, skip silently — do not mention it.
-4. **State your plan**: Tell the user what you intend to do AND explicitly name which rules from step 2 apply to this task (e.g. "Grounding Protocol applies — I need a kb file before writing code"). If a rule does not apply, you do not need to mention it.
-5. **[If Grounding Protocol applies] Library inventory**: Before writing any code, list every `import` and every shell command string the solution will use. Classify each: stdlib → propose `https://docs.python.org/3/library/[module].html` and wait for approval; registered in `list_libraries` → fetch before writing; not registered → propose URL, wait for approval, then fetch. Do not write any code until every import and shell command has a corresponding kb file. *(Full workflow: Grounding Protocol → Workflow, step 0)*
+4. **State your plan (high-level)**: Tell the user your intended approach and explicitly name which rules from step 2 apply (e.g. "Grounding Protocol applies — I need a kb file before writing code"). Keep this high-level — library specifics are resolved in step 5. If a rule does not apply, you do not need to mention it.
+5. **[If Grounding Protocol applies] Library inventory**: Before writing any code, list every `import` and every shell command string the solution will use. Classify each: stdlib → propose `https://docs.python.org/3/library/[module].html` and wait for approval; registered in the appropriate store (`list_libraries`, `list_clis`, or `list_other_sources` — see Source Registry) → fetch before writing; not registered → propose URL, wait for approval, then fetch. Do not write any code until every import and shell command has a corresponding kb file. *(Full workflow: Grounding Protocol → Workflow, step 0)*
    - kb files are per-deliverable. A kb file deleted after a prior task must be recreated before writing new code — "I already fetched it this session" is not a valid exemption.
 
 If you skip this checklist, you are operating without rules. There is no exception.
@@ -66,7 +66,7 @@ This protocol applies to any task that requires external knowledge: writing code
    - **Python stdlib** (`argparse`, `os`, `pathlib`, `json`, `re`, etc.) — fetch from `https://docs.python.org/3/library/[module].html`. Propose the URL and wait for approval before fetching.
    - **Registered** in `list_libraries` — must fetch the relevant section before writing code.
    - **Not registered** — must propose a URL and wait for user approval before proceeding.
-   - **Shell CLI commands** — treat like any other library: check `list_libraries` for a registered source, propose a URL if not registered, wait for approval, then fetch and save to kb before writing any command string. (e.g. macOS built-ins → `macos_cli`; `git`, `uv`, `docker` etc. → their own registered or proposed docs)
+   - **Shell CLI commands** — treat like any other library: check `list_clis` for a registered source, propose a URL if not registered, wait for approval, then fetch and save to kb before writing any command string. (e.g. macOS built-ins → `macos_cli`; `git`, `uv`, `docker` etc. → their own registered or proposed docs)
 
    Do not write any code until every import and every shell command string has a corresponding kb file.
 
@@ -84,12 +84,23 @@ This protocol applies to any task that requires external knowledge: writing code
 ### Multi-library tasks
 If a task spans multiple libraries, create one `kb_[topic].md` per library. List all files created at the start so the user knows the full knowledge boundary. Delete all of them upon task completion.
 
+### Source Registry
+The docs fetcher has three separate stores. Use the correct one when registering a new source after task completion:
+
+| Store | Tool to check | Tool to register | What belongs here |
+|---|---|---|---|
+| `libraries.json` | `list_libraries` | `add_library` | Python packages and language-level SDKs (e.g. `fastmcp`, `scikit-learn`, `requests`) |
+| `clis.json` | `list_clis` | `add_cli` | Standalone CLI tools invoked as shell commands (e.g. `git`, `uv`, `docker`, `claude`, `ffmpeg`) |
+| `other_sources.json` | `list_other_sources` | `add_other_source` | Everything else: hardware specs, RFCs, platform/OS docs, REST API references, standards documents |
+
+During the library inventory step (step 0), check the appropriate store based on what the import or command is — not always `list_libraries`.
+
 ### Library URL discovery
-If a required library is not in `list_libraries`:
+If a required source is not in its store (`list_libraries`, `list_clis`, or `list_other_sources`):
 1. **Propose**: Suggest the most likely official docs URL based on the library name. Present it to the user before fetching anything — do not silently use `fetch_url`.
 2. **Wait for approval**: Do not proceed with the task until the user confirms the URL is correct.
 3. **Fetch and continue**: Once approved, use `fetch_url` to proceed with the normal grounding workflow.
-4. **Register after completion**: Once the task is done and the user has accepted the output, call `add_library(name, url)` for the primary docs URL so the library is available by name in all future sessions. Only add a supplementary URL (e.g. a specific API reference page) if it is genuinely reusable and not reachable from the primary URL. The single source of truth for all libraries is `servers/docs_fetcher/libraries.json` — `add_library` writes there.
+4. **Register after completion**: Once the task is done and the user has accepted the output, register the source in the correct store (see **Source Registry** above). Only add a supplementary URL (e.g. a specific API reference page) if it is genuinely reusable and not reachable from the primary URL. The source of truth files are `servers/docs_fetcher/libraries.json`, `clis.json`, and `other_sources.json` — the `add_*` tools write there.
 5. **Stale server warning**: MCP server processes load code at startup. If `server.py` was edited in the current session, the running process may be stale and `add_library` may write to the wrong file. After any `server.py` edit, verify the server has been restarted before calling `add_library`. If unsure, edit `libraries.json` directly instead.
 
 ### Failure modes

@@ -116,112 +116,30 @@ def scan_large_files(root_dir: str = "/Users", top_n: int = 20, min_size_mb: flo
     }
 
 
-def _escalate(current: str, new: str) -> str:
-    order = {"GO": 0, "WARN": 1, "STOP": 2}
-    return new if order.get(new, 0) > order.get(current, 0) else current
-
-
 @mcp.tool()
-def system_health_check() -> dict:
+def get_directory_size(path: str) -> dict:
     """
-    Run a consolidated pre-work system health check on macOS.
-    Checks CPU, RAM, swap, disk (/System/Volumes/Data), and battery.
-    Returns a verdict (GO / WARN / STOP), a plain-English summary, and
-    per-component details with the threshold rationale.
-
-    Caveats:
-    - RAM % is an approximation of Apple's Memory Pressure (composite metric).
-    - CPU % on Apple Silicon does not distinguish efficiency vs performance cores.
-    - Battery returns GO if no battery is detected (e.g. Mac mini/Pro).
+    Run du -sk on a directory and return its disk usage.
+    Reports size in kilobytes (1024-byte blocks) and megabytes.
+    Read-only. Returns an error key if the path is inaccessible.
     """
-    checks = []
-    verdict = "GO"
+    import subprocess
 
-    # CPU
-    cpu_pct = psutil.cpu_percent(interval=1)
-    if cpu_pct > 95:
-        s, msg = "STOP", f"CPU at {cpu_pct:.1f}% — at or over capacity"
-    elif cpu_pct >= 80:
-        s, msg = "WARN", f"CPU at {cpu_pct:.1f}% — sustained high load, approaching bottleneck"
-    else:
-        s, msg = "GO", f"CPU at {cpu_pct:.1f}% — normal"
-    checks.append({"component": "CPU", "status": s, "value_pct": round(cpu_pct, 1), "detail": msg})
-    verdict = _escalate(verdict, s)
-
-    # RAM
-    vm = psutil.virtual_memory()
-    avail_mb = round(vm.available / (1024 ** 2))
-    if vm.percent > 90:
-        s, msg = "STOP", f"RAM at {vm.percent:.1f}% used ({avail_mb} MB available) — likely red memory pressure"
-    elif vm.percent >= 75:
-        s, msg = "WARN", f"RAM at {vm.percent:.1f}% used ({avail_mb} MB available) — compression likely active"
-    else:
-        s, msg = "GO", f"RAM at {vm.percent:.1f}% used ({avail_mb} MB available) — healthy"
-    checks.append({"component": "RAM", "status": s, "value_pct": round(vm.percent, 1), "detail": msg})
-    verdict = _escalate(verdict, s)
-
-    # Swap
-    swap = psutil.swap_memory()
-    swap_mb = round(swap.used / (1024 ** 2))
-    claude_running = any(
-        "claude" in (p.info.get("exe") or "").lower()
-        for p in psutil.process_iter(["exe"])
+    result = subprocess.run(
+        ["du", "-sk", path],
+        capture_output=True,
+        text=True,
     )
-    if swap_mb > 1024:
-        if claude_running:
-            s, msg = "WARN", f"Swap at {swap_mb} MB — active Claude Code session, pressure is expected"
-        else:
-            s, msg = "STOP", f"Swap at {swap_mb} MB — RAM saturated, expect latency spikes"
-    elif swap_mb >= 500:
-        s, msg = "WARN", f"Swap at {swap_mb} MB — light but sustained memory pressure"
-    else:
-        s, msg = "GO", f"Swap at {swap_mb} MB — minimal"
-    checks.append({"component": "Swap", "status": s, "value_mb": swap_mb, "detail": msg})
-    verdict = _escalate(verdict, s)
+    if result.returncode != 0:
+        return {"path": path, "error": result.stderr.strip()}
 
-    # Disk — only /System/Volumes/Data (main user volume)
-    for part in psutil.disk_partitions(all=False):
-        if part.mountpoint != "/System/Volumes/Data":
-            continue
-        try:
-            usage = psutil.disk_usage(part.mountpoint)
-            free_pct = round(100 - usage.percent, 1)
-            free_gb = round(usage.free / (1024 ** 3), 1)
-            if free_pct < 10:
-                s, msg = "STOP", f"Disk critically full — {free_gb} GB ({free_pct}%) free"
-            elif free_pct < 20:
-                s, msg = "WARN", f"Disk below recommended minimum — {free_gb} GB ({free_pct}%) free"
-            else:
-                s, msg = "GO", f"Disk healthy — {free_gb} GB ({free_pct}%) free"
-            checks.append({"component": "Disk", "status": s, "free_pct": free_pct, "free_gb": free_gb, "detail": msg})
-            verdict = _escalate(verdict, s)
-        except OSError:
-            pass
-
-    # Battery
-    battery = psutil.sensors_battery()
-    if battery is None:
-        checks.append({"component": "Battery", "status": "GO", "value_pct": None,
-                        "detail": "No battery detected"})
-    else:
-        pct = round(battery.percent, 1)
-        plugged = battery.power_plugged
-        if not plugged and pct <= 10:
-            s, msg = "STOP", f"Battery critically low at {pct}% — plug in immediately"
-        elif not plugged and pct <= 20:
-            s, msg = "WARN", f"Battery low at {pct}% and unplugged"
-        else:
-            state = "plugged in" if plugged else "unplugged"
-            s, msg = "GO", f"Battery at {pct}%, {state}"
-        checks.append({"component": "Battery", "status": s, "value_pct": pct, "detail": msg})
-        verdict = _escalate(verdict, s)
-
-    summaries = {
-        "GO": "All systems healthy — good to go.",
-        "WARN": "One or more systems need attention — proceed with caution.",
-        "STOP": "Critical issue detected — resolve before starting work.",
+    line = result.stdout.strip()
+    size_kb = int(line.split("\t", 1)[0])
+    return {
+        "path": path,
+        "size_kb": size_kb,
+        "size_mb": round(size_kb / 1024, 2),
     }
-    return {"verdict": verdict, "summary": summaries[verdict], "checks": checks}
 
 
 if __name__ == "__main__":
