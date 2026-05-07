@@ -24,22 +24,48 @@ verdict = _escalate(verdict, s)
 
 swap = psutil.swap_memory()
 swap_mb = round(swap.used / (1024 ** 2))
-claude_running = any(
-    "claude" in (p.info.get("exe") or "").lower()
-    for p in psutil.process_iter(["exe"])
-)
+
+_HEAVY_APPS = {
+    "Google Chrome": "Chrome",
+    "Slack": "Slack",
+    "Messages": "Messages",
+    "Microsoft Word": "Word",
+    "Microsoft Excel": "Excel",
+    "Microsoft Teams": "Teams",
+    "Spotify": "Spotify",
+    "zoom.us": "Zoom",
+    "Discord": "Discord",
+}
+running_heavy = []
+claude_running = False
+for p in psutil.process_iter(["name", "exe"]):
+    name = p.info.get("name") or ""
+    exe = p.info.get("exe") or ""
+    if "claude" in exe.lower():
+        claude_running = True
+    for proc_name, label in _HEAVY_APPS.items():
+        if label not in running_heavy and (
+            proc_name.lower() in name.lower() or proc_name.lower() in exe.lower()
+        ):
+            running_heavy.append(label)
+
 if swap_mb > 1024:
     if claude_running:
         s, msg = "WARN", f"Swap at {swap_mb} MB — active Claude Code session, pressure is expected"
-        tip = None
     else:
         s, msg = "STOP", f"Swap at {swap_mb} MB — RAM saturated"
-        tip = "Close memory-heavy apps  |  Find hogs: ps aux | sort -rk 4 | head -10"
 elif swap_mb >= 500:
     s, msg = "WARN", f"Swap at {swap_mb} MB — memory pressure"
-    tip = "Close memory-heavy apps  |  Find hogs: ps aux | sort -rk 4 | head -10"
 else:
-    s, msg, tip = "GO", f"Swap at {swap_mb} MB — minimal", None
+    s, msg = "GO", f"Swap at {swap_mb} MB — minimal"
+
+if swap_mb >= 500 and running_heavy:
+    tip = "Close if not in use: " + ", ".join(running_heavy)
+elif swap_mb > 1024 and not claude_running:
+    tip = "Find hogs: ps aux -m | head -10"
+else:
+    tip = None
+
 checks.append({"component": "Swap", "status": s, "detail": msg, "tip": tip})
 verdict = _escalate(verdict, s)
 
