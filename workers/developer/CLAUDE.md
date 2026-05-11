@@ -78,15 +78,15 @@ sandbox/<task_name>/
 └── output/
 ```
 - Create both together: `mkdir -p sandbox/<task_name>/output`
-- Output path: `Path(__file__).parent / "output"`, call `.mkdir(exist_ok=True)` on it.
-- All generated files (PNGs, CSVs, etc.) go into `output/`. Nothing written to the script folder or sandbox root.
+- **Intermediate artifacts** (PNGs, CSVs, working files): `Path(__file__).parent / "output"`, call `.mkdir(exist_ok=True)`. Nothing written to the script folder or sandbox root.
+- **Final deliverables** (PDFs, structured outputs for the user): write to `../../output/` (project root `output/` directory), not `sandbox/<task_name>/output/`.
 - **Do not self-execute scripts**: Provide the run command and wait. Only run if user explicitly asks.
 - **Data source**: If a dataset is needed and the user hasn't provided one, ask: real data or synthetic? Synthetic data produces idealized metrics — make this clear.
 
 ## Security & Safety Constraints
 - **Human-in-the-Loop**: Confirm before executing any command that deletes files or modifies system-level configurations.
 - **Read-Only Default**: When using system tools (CPU, disk, network), prioritize read-only access. Do not create write or delete capabilities unless explicitly requested.
-- **Sandboxing**: File operations restricted to `./sandbox/`. `./kb/` is explicitly permitted for persistent knowledge base files. Note: `../../output/` is not used by this worker — code deliverables stay in the worker's directory per project Output Conventions; `../../output/` applies only to markdown deliverable workers (Architect, Content).
+- **Sandboxing**: File operations restricted to `./sandbox/`, `./kb/`, and `../../output/`. Intermediate artifacts go in `./sandbox/<task_name>/output/`; final deliverables (PDFs, structured outputs for the user) go in `../../output/`. No writes elsewhere.
 - **Dependency Check**: Before running `uv add` or `pip install`, verify the package is well-known and relevant. No obfuscated or suspicious packages.
 
 ## ML Tasks

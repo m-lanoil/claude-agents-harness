@@ -13,7 +13,7 @@ Every worker `CLAUDE.md` must include all six items, regardless of mandate.
 | 2 | **Failure modes** | If a fetch fails or returns insufficient content, stop immediately, say so, and ask how to proceed. No silent fallback to training data or unverified content. |
 | 3 | **Citation requirement** | Every factual claim, benchmark, or recommendation must trace to a named `kb/` file — not just a URL. "Cite sources inline" alone is not sufficient. |
 | 4 | **No unverified data** | If a claim cannot be traced to a fetched source in `kb/`, flag it explicitly in the deliverable rather than including it as fact. |
-| 5 | **Sandboxing** | File writes explicitly scoped to `./kb/` and `../../output/`. No writes elsewhere. |
+| 5 | **Sandboxing** | File writes explicitly scoped based on worker type. **Deliverable workers** (Architect, Content): `./kb/` and `../../output/` only. **Code workers** (Developer): intermediate artifacts to `./sandbox/<task_name>/output/`; final deliverables (PDFs, structured outputs for the user) to `../../output/`. No writes elsewhere. |
 | 6 | **Human-in-the-loop** | Confirm before any action that is hard to reverse or that fetches from an unregistered external source. |
 
 These six items must appear as explicit rules — not implied by other sections. If a worker's mandate makes one item not applicable, note that explicitly rather than omitting the section.
