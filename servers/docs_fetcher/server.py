@@ -362,5 +362,22 @@ def crawl_docs(url: str, max_pages: int = 10, same_prefix: bool = True, keywords
     }
 
 
+@mcp.tool()
+def get_fetch_stats() -> dict:
+    """Return statistics about URLs fetched in this session."""
+    urls_fetched = list(_cache.keys())
+    fetch_count = len(urls_fetched)
+    total_chars = sum(len(html) for html in _cache.values())
+    estimated_tokens = total_chars // 4
+    session_note = f"{fetch_count} URL{'s' if fetch_count != 1 else ''} fetched, ~{estimated_tokens:,} estimated tokens this session."
+    return {
+        "urls_fetched": urls_fetched,
+        "fetch_count": fetch_count,
+        "total_chars": total_chars,
+        "estimated_tokens": estimated_tokens,
+        "session_note": session_note,
+    }
+
+
 if __name__ == "__main__":
     mcp.run()

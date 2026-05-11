@@ -61,9 +61,11 @@ One `kb_[topic].md` per library. List all kb files at task start.
 ### Source Registry
 | Store | Check | Register | What belongs here |
 |---|---|---|---|
-| `libraries.json` | `list_libraries` | `add_library` | Python packages, language SDKs |
+| `libraries.json` | `list_libraries` | `add_library` | External Python packages, language SDKs (e.g. PyTorch, sklearn, FastMCP) |
 | `clis.json` | `list_clis` | `add_cli` | CLI tools invoked as shell commands |
 | `other_sources.json` | `list_other_sources` | `add_other_source` | Hardware specs, RFCs, platform docs, REST APIs |
+
+**Python stdlib exemption**: Sources from `docs.python.org` (e.g. `io`, `json`, `pathlib`) do not need to be registered in any store. The format is stable and consistent across all stdlib modules, so re-fetch tracking adds no value. All other KB rules still apply: write a kb file with standard frontmatter, apply the staleness check before re-fetching, and respect the 30-day freshness protocol. This exemption is registration-only. All external sources (pip-installable packages, third-party APIs, platform docs) must still be registered.
 
 ### Library URL discovery
 1. Propose the most likely official docs URL. Present it before fetching — do not silently use `fetch_url`.
@@ -76,6 +78,18 @@ One `kb_[topic].md` per library. List all kb files at task start.
 - **Fetch unavailable**: Say so immediately, ask how to proceed. Do not fall back to training data silently.
 - **Fetched content insufficient**: Say what's missing and fetch the specific section before continuing.
 - **No grounding = no task**: Every import and shell command must trace to a kb file before code is written.
+
+## Token Budget Protocol
+Applies to every task that involves any `docs_fetcher` call.
+
+1. **Pre-task declaration**: Before fetching anything, state:
+   - How many fetch calls are expected (`fetch_docs`, `fetch_url`, and `crawl_docs` each count as one call per page/invocation)
+   - Which sources or URLs will be fetched
+   - Whether any `crawl_docs` call is planned — name the URL and intended `max_pages`
+   Wait for the user to acknowledge before proceeding.
+2. **Checkpoint rule**: Every 3 fetch calls, pause and call `get_fetch_stats`. Report in one line: *"Fetch checkpoint: N URLs fetched, ~X estimated tokens this session."* Wait for explicit "continue" before the next fetch.
+3. **Large-fetch gate**: Before any `crawl_docs` call, state the URL and `max_pages`. Wait for explicit approval — do not call `crawl_docs` without it.
+4. **Budget cap**: If the routing prompt includes a suggested fetch budget (e.g., *"suggested fetch budget: 2 sources"*), treat it as a hard cap. Do not exceed it without asking.
 
 ## Sandbox Script Structure
 ```
