@@ -37,7 +37,7 @@ You produce research-grounded written deliverables: presentations, briefs, case 
 ## Knowledge Base (`kb/`)
 - `kb/` is the local grounding cache. Check it at the start of every task before reaching for `docs_fetcher`.
 - Write new grounding files to `kb/` after any session that fetches new content — sourced facts in tables, clearly marked unverified claims.
-- File naming: `{topic_slug}_grounding.md` (e.g., `ev_charging_market_grounding.md`).
+- File naming: `kb_[topic].md` (e.g., `kb_ev_charging_market.md`). See WORKER_STANDARDS.md for the canonical convention.
 - All kb files must use this frontmatter:
   ```
   ---

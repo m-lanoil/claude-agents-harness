@@ -19,6 +19,12 @@ Workers run as separate Claude Code sessions — never via the Agent tool. When 
 3. Include a **suggested fetch budget** line in every routing prompt: *"Suggested fetch budget: N sources."* The worker treats this as a hard cap.
 4. Do not begin the task yourself.
 
+### Routing Prompt Quality Standard
+Every routing prompt must include all three of the following before being handed to the user:
+- **Expected output**: Specify what a complete deliverable looks like — file path, format, and required sections or structure. The worker must know what "done" looks like before starting.
+- **Checklist invocation**: Include the line *"Run your Task Start Checklist before taking any action."* Do not assume the worker will do this unprompted.
+- **Self-critique instruction**: Include the line *"Before closing the task, review your deliverable against this brief and flag any gap or assumption you made."* This surfaces misalignment before the user reviews.
+
 ## Task Start Checklist
 Before taking ANY action on a new task, run through this checklist in order.
 1. **Classify the task**: Code/implementation (→ Developer)? Architecture/technology selection (→ Architect)? Written deliverable or document review (→ Content)? Infrastructure (→ handle here)? Identify which sections apply.

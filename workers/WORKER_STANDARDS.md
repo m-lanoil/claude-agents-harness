@@ -34,6 +34,9 @@ Before using any kb file, and before any fetch, apply this logic to each source:
 - **kb file exists, `fetched:` >30 days** → stale. Re-fetch and update before using.
 - **kb file missing** → fetch (subject to URL approval gate). Save before proceeding.
 
+### KB file naming convention
+All kb files must use the prefix `kb_` followed by a lowercase snake_case topic slug: `kb_[topic].md` (e.g., `kb_fastmcp.md`, `kb_ev_charging_market.md`). No other naming scheme is permitted — do not use suffixes like `_grounding` or `_sources`.
+
 ### KB frontmatter format
 All kb files must use this header — adapt the primary key name to the worker's domain:
 ```
@@ -49,6 +52,17 @@ fetched: YYYY-MM-DD
 2. **Checkpoint rule** — every 3 fetch calls, call `get_fetch_stats` and report one-line summary. Wait for "continue."
 3. **Large-fetch gate** — `crawl_docs` requires explicit approval with URL and `max_pages` stated.
 4. **Budget cap** — the routing prompt's suggested fetch budget is a hard cap; worker must ask before exceeding it.
+
+### Handoff Rule
+When you identify a dependency on another worker mid-task — or when your task is complete and further work requires a different mandate — do not generate a routing prompt for that worker yourself. The Meta-Orchestrator is responsible for all routing decisions and prompt construction.
+
+Required behaviour at a handoff boundary:
+1. Complete your portion of the task within your mandate.
+2. State explicitly what is needed next and which worker handles it (e.g. *"This requires Developer work: [description of what is needed]"*).
+3. Instruct the user to return to the Meta-Orchestrator session with that context.
+4. Stop there. Do not draft the next worker's prompt.
+
+Generating cross-worker routing prompts bypasses the orchestrator's classification step, skips routing protocol checks, and breaks the audit trail.
 
 ### Source Registry
 After any session that fetches new content, register each new source URL in the correct store:
