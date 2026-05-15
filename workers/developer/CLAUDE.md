@@ -16,7 +16,7 @@ Before taking ANY action on a new task:
    - **Grounding — after writing code**: Re-scan every import and shell command. Verify each traces to a kb file. Cite grounding to the user.
    - **Grounding — multi-library tasks**: One kb file per library. List all kb files at task start.
    - **Grounding — unregistered libraries**: Propose URL, wait for approval, fetch. Register after task completion.
-   - **Sandbox**: Scripts go in `./sandbox/<task_name>/`. Do not self-execute. Ask real vs. synthetic data if dataset needed.
+   - **Sandbox**: All work goes in `./sandbox/<project_name>/`. Each script in its own subfolder with its own `output/`. Never write to the sandbox root. Do not self-execute. Ask real vs. synthetic data if dataset needed.
    - **Security**: Confirm before any delete or system-level command. Read-only default. Verify packages before installing.
    - **ML Tasks**: State model-dataset size tradeoffs before choosing. Let the user decide.
 4. **Library inventory**: Before writing any code, list every `import` and shell command string the solution will use. For each, check `./kb/` first — if a kb file exists and `fetched:` date is ≤30 days old, use it directly. Only fetch if missing or stale. Do not write any code until every import and shell command has a corresponding kb file.
@@ -72,21 +72,29 @@ One `kb_[topic].md` per library. List all kb files at task start.
 - **No grounding = no task**: Every import and shell command must trace to a kb file before code is written.
 
 ## Sandbox Script Structure
+All work lives inside a project folder — never put files directly in the sandbox root.
 ```
-sandbox/<task_name>/
-├── <task_name>.py
-└── output/
+sandbox/<project_name>/
+├── data/                         (shared datasets and raw inputs)
+├── <script_or_task>/
+│   ├── <script>.py
+│   └── output/                   (artifacts for this script only)
+└── <another_script_or_task>/
+    ├── <script>.py
+    └── output/
 ```
-- Create both together: `mkdir -p sandbox/<task_name>/output`
-- **Intermediate artifacts** (PNGs, CSVs, working files): `Path(__file__).parent / "output"`, call `.mkdir(exist_ok=True)`. Nothing written to the script folder or sandbox root.
-- **Final deliverables** (PDFs, structured outputs for the user): write to `../../output/` (project root `output/` directory), not `sandbox/<task_name>/output/`.
+- Folder and file names: `lowercase_snake_case`, no spaces or special characters.
+- Each script or sub-task gets its own subdirectory with its own `output/` — outputs from different scripts do not share a folder.
+- Create the folder structure before writing any files.
+- **Intermediate artifacts** (PNGs, CSVs, working files): `Path(__file__).parent / "output"`, call `.mkdir(exist_ok=True)`.
+- **Final deliverables** (PDFs, structured outputs for the user): write to `../../output/` (project root `output/` directory).
 - **Do not self-execute scripts**: Provide the run command and wait. Only run if user explicitly asks.
 - **Data source**: If a dataset is needed and the user hasn't provided one, ask: real data or synthetic? Synthetic data produces idealized metrics — make this clear.
 
 ## Security & Safety Constraints
 - **Human-in-the-Loop**: Confirm before executing any command that deletes files or modifies system-level configurations.
 - **Read-Only Default**: When using system tools (CPU, disk, network), prioritize read-only access. Do not create write or delete capabilities unless explicitly requested.
-- **Sandboxing**: File operations restricted to `./sandbox/`, `./kb/`, and `../../output/`. Intermediate artifacts go in `./sandbox/<task_name>/output/`; final deliverables (PDFs, structured outputs for the user) go in `../../output/`. No writes elsewhere.
+- **Sandboxing**: File operations restricted to `./sandbox/`, `./kb/`, and `../../output/`. All work in `./sandbox/<project_name>/`; each script in its own subfolder with its own `output/`; final deliverables (PDFs, structured outputs for the user) go in `../../output/`. No writes elsewhere.
 - **Dependency Check**: Before running `uv add` or `pip install`, verify the package is well-known and relevant. No obfuscated or suspicious packages.
 
 ## ML Tasks

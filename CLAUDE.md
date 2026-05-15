@@ -25,18 +25,36 @@ Every routing prompt must include all three of the following before being handed
 - **Checklist invocation**: Include the line *"Run your Task Start Checklist before taking any action."* Do not assume the worker will do this unprompted.
 - **Self-critique instruction**: Include the line *"Before closing the task, review your deliverable against this brief and flag any gap or assumption you made."* This surfaces misalignment before the user reviews.
 
+### Acceptance Check
+After the user returns with worker output:
+1. Read the deliverable at the path specified in the routing prompt.
+2. Verify it meets the Expected Output spec and addresses the self-critique instruction.
+3. If either fails, route back to the same worker with a targeted correction brief citing the specific gap.
+4. Only close the task once both pass.
+
 ## Task Start Checklist
 Before taking ANY action on a new task, run through this checklist in order.
-1. **Classify the task**: Code/implementation (→ Developer)? Architecture/technology selection (→ Architect)? Written deliverable or document review (→ Content)? Infrastructure (→ handle here)? Identify which sections apply.
+1. **Classify the task**: Code/implementation (→ Developer)? Architecture/technology selection (→ Architect)? Written deliverable or document review (→ Content)? Infrastructure (→ handle here)?
+   - **Code + Architecture**: Primary deliverable decides — running artifact → Developer first; recommendation → Architect first. Use Multi-Hop for the secondary.
+   - **Research + written deliverable**: Content handles both.
+   - **Code review with architecture concerns**: Developer for correctness; Architect as second hop only if warranted.
 2. **Active rules check**:
    - **Infrastructure**: Use `uv`. Store tools in `./servers/`. Use `fastmcp` (v3) with `FastMCP`.
    - **Worker/Tool-Building**: Extend before creating. Get explicit approval before editing `server.py` or running `claude mcp add`. Worker drafts must satisfy all items in `workers/WORKER_STANDARDS.md`.
    - **Security**: Confirm before any delete, format, or system-level command.
-   - **Verification**: Dry Run before registering any tool. Log all changes in `TOOL_LOG.md`.
-3. **Server freshness check**: Read `TOOL_LOG.md`. Use most recent **Audited** entry per server (fall back to **Created** if never audited — never use **Updated**). If >30 days before today, run **Server Freshness Protocol** first. Skip silently if all current.
+   - **Verification**: Dry Run before registering any tool. Log all changes: server history in `logs/[server].md`, worker gap fixes in `logs/worker_updates.md`, new entries in `TOOL_LOG.md` index.
+3. **Server freshness check**: Automated by weekly cron (`scripts/check_server_freshness.py`, Mondays 9am). Check `SERVER_FRESHNESS_ALERTS.md` — if the latest entry is dated within the past 7 days and marked **STALE**, run the **Server Freshness Protocol** before proceeding. Otherwise skip.
 4. **State your plan**: Name your approach and which rules apply. If routing, name the worker and why.
 
 If you skip this checklist, you are operating without rules. There is no exception.
+
+## Multi-Hop Task Protocol
+For tasks requiring sequential workers (e.g. Architect → Developer):
+1. **Plan the chain**: At task start, identify all workers needed in order. Name the output each worker must produce for the next.
+2. **Route hop 1**: Standard routing prompt. State explicitly what the next worker will consume from this output.
+3. **Accept hop 1**: Run the Acceptance Check before routing to the next hop.
+4. **Route hop 2**: Reference hop 1's output file path in the routing prompt alongside the original task context.
+5. Repeat until all hops complete. Each hop follows the Routing Prompt Quality Standard.
 
 ## Infrastructure Rules
 - Use `uv` for all Python environments (no bare `pip install`, no `venv` manually).
@@ -46,37 +64,14 @@ If you skip this checklist, you are operating without rules. There is no excepti
 ## Output Conventions
 - Deliverable markdown files (presentations, briefs, reports, architecture docs) → `./output/` at project root. Code files stay in the worker's directory. Include this in routing prompts.
 
-## The Worker-Building Loop
-1. **Identify**: State the worker's mandate — what it handles and what it does not.
-2. **Extend or Create**: Extend an existing worker if mandate fits. Only create when genuinely distinct.
-3. **Define tool surface**: List MCP servers the worker gets. Err toward fewer tools.
-4. **Draft `CLAUDE.md`**: Verify every item in `workers/WORKER_STANDARDS.md` is present before presenting the draft. Wait for explicit approval before writing any files.
-5. **Scaffold**: Create `workers/[name]/` and subdirectories (e.g. `kb/`, `sandbox/`).
-6. **Log**: Record in `TOOL_LOG.md` under **Workers** with timestamp, name, mandate, tool surface.
-7. **Update Workers table**: Add a row to the Workers table in this file.
+## Worker-Building Loop
+See `workers/WORKER_BUILDING_LOOP.md`. Read and run through it in order when creating or extending a worker.
 
-## The Tool-Building Loop
-1. **Identify**: "I need a tool for [X]."
-2. **Extend or Create**: Fit into an existing server if possible. Extensions need the same approval and Dry Run as new servers. Extensions logged in **Updated**; new servers in **Created**.
-3. **Scaffold** *(new only)*: `mkdir -p servers/[name] && cd servers/[name] && uv init --no-readme && rm -f main.py && uv add fastmcp`
-4. **Code**: Run **Server Code Grounding Protocol** before writing `server.py`.
-5. **Register** *(new only)*: `claude mcp add [name] -- uv --project /full/path/to/servers/[name] run /full/path/to/servers/[name]/server.py`
-6. **Verify**: Run `claude mcp list`. "Failed to connect" = startup crash — diagnose and fix before proceeding.
+## Tool-Building Loop
+See `servers/TOOL_BUILDING_LOOP.md`. Read and run through it in order when creating or extending a server. Includes the Server Code Grounding Protocol.
 
 ## Worker Standards
-Canonical requirements for every worker `CLAUDE.md` are in `workers/WORKER_STANDARDS.md`. The Worker-Building Loop (step 4) and Worker Gap Protocol both reference this file as the canonical source. Never skip it when drafting or auditing workers.
-
-## Server Code Grounding Protocol
-Applies when writing or extending `server.py`. Meta-Orchestrator cannot call `docs_fetcher` — route all fetches to Developer worker.
-
-**Grounding store**: `./servers/kb/` — one file per library (`kb_[library].md`). Frontmatter: `library`, `source`, `fetched: YYYY-MM-DD`.
-
-**Pre-write gate** (required, in order):
-1. List every `import` the planned `server.py` will use.
-2. For each import, check `./servers/kb/` for a kb file with `fetched:` ≤30 days. If missing or stale, route to Developer: *"Fetch docs for [library] and write to `../../servers/kb/kb_[library].md`."* Read before proceeding.
-3. Do not write `server.py` until every import is grounded.
-
-**Post-write audit**: Re-scan every import and tool call signature against its kb file. If any pattern is absent, route back to Developer and resolve before finalising.
+Canonical requirements for every worker `CLAUDE.md` are in `workers/WORKER_STANDARDS.md`. The Worker-Building Loop and Worker Gap Protocol both reference this file as the canonical source. Never skip it when drafting or auditing workers.
 
 ## Security & Safety Constraints
 - **Human-in-the-Loop**: Confirm before any delete, format, or system-level command.
@@ -85,7 +80,7 @@ Applies when writing or extending `server.py`. Meta-Orchestrator cannot call `do
 
 ## Verification Protocol
 - **Dry Run**: Explain system impact before changing or registering a tool.
-- **Audit Trail**: Log in `TOOL_LOG.md` — **Created**, **Updated**, **Audited**, **Worker Updates**. Use full timestamps (`YYYY-MM-DD HH:MM:SS`).
+- **Audit Trail**: Log server creation/audits in `TOOL_LOG.md` (Created, Audited) and the full change history in `logs/[server].md` (Created, Updated, Audited). Log worker gap fixes in `logs/worker_updates.md`. Update the Servers table in `TOOL_LOG.md` when registering or auditing a server. Use full timestamps (`YYYY-MM-DD HH:MM:SS`).
 
 ## Server Freshness Protocol
 Triggered when a server's most recent `TOOL_LOG.md` Audited timestamp (or Created if never audited) is >30 days old.
@@ -99,9 +94,4 @@ Triggered when a server's most recent `TOOL_LOG.md` Audited timestamp (or Create
 If the user skips the audit, proceed immediately and do not raise it again this session.
 
 ## Worker Gap Protocol
-Triggered when the user reports a gap in any worker's behavior.
-1. **Classify**: Security/auditability gap → fix `workers/WORKER_STANDARDS.md`. Reusable process gap → same. Worker-specific → that worker's `CLAUDE.md` only. If in doubt, treat as reusable.
-2. **Fix canonical source first**: Edit `workers/WORKER_STANDARDS.md` before touching any worker file.
-3. **Backfill** *(mandate-specific gaps only)*: Workers read `WORKER_STANDARDS.md` at task start — shared rule fixes propagate automatically with no backfill. Only edit individual worker files when the gap is mandate-specific (i.e. it belongs in that worker's `CLAUDE.md` because it doesn't apply to other workers).
-4. **Consistency check**: For mandate-specific edits, re-read the updated worker file to confirm the fix is present and non-contradictory. For shared-rule edits, re-read `WORKER_STANDARDS.md` only.
-5. **Log**: Add entry under **Worker Updates** in `TOOL_LOG.md`.
+See `workers/WORKER_GAP_PROTOCOL.md`. Triggered when the user reports a gap in any worker's behavior.

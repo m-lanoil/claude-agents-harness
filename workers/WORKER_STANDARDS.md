@@ -13,7 +13,7 @@ Every worker `CLAUDE.md` must include all six items, regardless of mandate.
 | 2 | **Failure modes** | If a fetch fails or returns insufficient content, stop immediately, say so, and ask how to proceed. No silent fallback to training data or unverified content. |
 | 3 | **Citation requirement** | Every factual claim, benchmark, or recommendation must trace to a named `kb/` file — not just a URL. "Cite sources inline" alone is not sufficient. |
 | 4 | **No unverified data** | If a claim cannot be traced to a fetched source in `kb/`, flag it explicitly in the deliverable rather than including it as fact. |
-| 5 | **Sandboxing** | File writes explicitly scoped based on worker type. **Deliverable workers** (Architect, Content): `./kb/` and `../../output/` only. **Code workers** (Developer): intermediate artifacts to `./sandbox/<task_name>/output/`; final deliverables (PDFs, structured outputs for the user) to `../../output/`. No writes elsewhere. |
+| 5 | **Sandboxing** | File writes explicitly scoped based on worker type. **Deliverable workers** (Architect, Content): `./kb/` and `../../output/` only. **Code workers** (Developer): all work (scripts, data, outputs, requirements) lives in `./sandbox/<project_name>/`; final deliverables (PDFs, structured outputs for the user) to `../../output/`. Never put files directly in the sandbox root. Use `lowercase_snake_case` for all folder and file names. |
 | 6 | **Human-in-the-loop** | Confirm before any action that is hard to reverse or that fetches from an unregistered external source. |
 
 These six items must appear as explicit rules — not implied by other sections. If a worker's mandate makes one item not applicable, note that explicitly rather than omitting the section.
@@ -29,7 +29,7 @@ Every worker's checklist must follow this order:
 4. **State the plan** — describe approach and name which rules apply.
 
 ### KB staleness check (three-branch logic)
-Before using any kb file, and before any fetch, apply this logic to each source:
+Before using any kb file, and before any fetch, consult `KB_STALENESS_LOG.md` at the project root for a pre-computed staleness overview (updated by weekly cron, Mondays 9am). Then apply this logic to each source you will actually use:
 - **kb file exists, `fetched:` ≤30 days** → use directly. Do not re-fetch.
 - **kb file exists, `fetched:` >30 days** → stale. Re-fetch and update before using.
 - **kb file missing** → fetch (subject to URL approval gate). Save before proceeding.
@@ -49,6 +49,22 @@ fetched: YYYY-MM-DD
 
 ### Token Budget Protocol
 1. **Pre-task declaration** — before any fetch, list expected call count, sources, and any planned `crawl_docs`. Wait for user acknowledgment.
+1a. **Budget conflict gate** — immediately after the library inventory and before making any fetches: count the fetches the inventory requires and compare to the budget. If required fetches exceed the budget, STOP. Do not fetch. Do not write code. Report to the user using this structure:
+
+   > **Budget conflict — cannot proceed without approval.**
+   >
+   > Imports requiring kb files: `[list each one]`
+   > Fetches needed: N | Budget remaining: M
+   >
+   > Options:
+   > A. Approve N additional fetches — I will ground all imports then write the code.
+   > B. Approve fetches for required imports only; optional deps stay ungrounded and their features are excluded.
+   > C. Restructure the script to reduce the import surface — tell me which deps to drop.
+   >
+   > Which option?
+
+   Wait for explicit selection before taking any further action. The structured options are required — a vague "can I fetch more?" prompt is not sufficient.
+
 2. **Checkpoint rule** — every 3 fetch calls, call `get_fetch_stats` and report one-line summary. Wait for "continue."
 3. **Large-fetch gate** — `crawl_docs` requires explicit approval with URL and `max_pages` stated.
 4. **Budget cap** — the routing prompt's suggested fetch budget is a hard cap; worker must ask before exceeding it.
@@ -73,6 +89,6 @@ After any session that fetches new content, register each new source URL in the 
 | `clis.json` | `list_clis` | `add_cli` | CLI tools invoked as shell commands |
 | `other_sources.json` | `list_other_sources` | `add_other_source` | Hardware specs, RFCs, platform docs, REST APIs, reports, reference pages |
 
-**Python stdlib exemption**: Sources from `docs.python.org` do not need to be registered — stdlib format is stable and these are fetched for grounding only. All other KB rules still apply. All external sources must be registered as normal.
+**Python stdlib exemption**: `docs.python.org` sources are exempt from Source Registry registration only — do not call `add_library` or `add_other_source` for stdlib modules. The kb file is still mandatory: propose the `docs.python.org` URL, wait for approval, fetch, and write `kb_[module].md` before writing any code that uses the module. All other KB rules (staleness check, frontmatter format, naming convention) still apply. All external (non-stdlib) sources must be registered as normal.
 
 Register only sources fetched this session — not existing kb files. **Stale server warning**: If `server.py` was edited this session, the running process may be stale — edit the JSON files in `servers/docs_fetcher/` directly instead of calling the tool.
