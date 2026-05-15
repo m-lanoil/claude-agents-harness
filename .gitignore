@@ -217,7 +217,9 @@ __marimo__/
 # Project-local artifacts (not committed)
 sandbox/
 kb/
+logs/
 output/
+TOOL_LOG.md
 KB_STALENESS_LOG.md
 SERVER_FRESHNESS_ALERTS.md
 .mcp.json
