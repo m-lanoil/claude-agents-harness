@@ -64,7 +64,7 @@ One `kb_[topic].md` per library. List all kb files at task start.
 2. Wait for user approval.
 3. Fetch and continue once approved.
 4. Register in the correct store after task completion.
-5. **Stale server warning**: If `server.py` was edited this session, the running process may be stale. Verify server restarted before calling `add_library`. If unsure, edit `libraries.json` directly.
+5. **Stale server warning**: If `server.py` was edited this session, the running process may be stale. Verify server restarted before calling `add_library`. If unsure, edit the JSON directly (see WORKER_STANDARDS.md — Source Registry Protocol).
 
 ### Failure modes
 - **Fetch unavailable**: Say so immediately, ask how to proceed. Do not fall back to training data silently.

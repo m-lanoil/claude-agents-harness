@@ -81,14 +81,16 @@ Required behaviour at a handoff boundary:
 Generating cross-worker routing prompts bypasses the orchestrator's classification step, skips routing protocol checks, and breaks the audit trail.
 
 ### Source Registry
-After any session that fetches new content, register each new source URL in the correct store:
+After any session that fetches new content, register each new source URL in the correct JSON in `../../servers/docs_fetcher/`:
 
-| Store | Check | Register | What belongs here |
-|---|---|---|---|
-| `libraries.json` | `list_libraries` | `add_library` | External Python packages, language SDKs (e.g. PyTorch, sklearn, FastMCP) |
-| `clis.json` | `list_clis` | `add_cli` | CLI tools invoked as shell commands |
-| `other_sources.json` | `list_other_sources` | `add_other_source` | Hardware specs, RFCs, platform docs, REST APIs, reports, reference pages |
+| File | What belongs here |
+|---|---|
+| `libraries.json` | External Python packages, language SDKs (e.g. PyTorch, sklearn, FastMCP) |
+| `clis.json` | CLI tools invoked as shell commands |
+| `other_sources.json` | Hardware specs, RFCs, platform docs, REST APIs, model cards, datasets, reports, reference pages |
 
-**Python stdlib exemption**: `docs.python.org` sources are exempt from Source Registry registration only — do not call `add_library` or `add_other_source` for stdlib modules. The kb file is still mandatory: propose the `docs.python.org` URL, wait for approval, fetch, and write `kb_[module].md` before writing any code that uses the module. All other KB rules (staleness check, frontmatter format, naming convention) still apply. All external (non-stdlib) sources must be registered as normal.
+**How to register**: Edit the JSON file directly — add `"name": "url"` to the object and save. If the file does not exist yet, create it with `{}` first. Do not rely solely on the MCP tools (`add_library`, `add_cli`, `add_other_source`) — these files are gitignored and may not be present; direct editing is always safe.
 
-Register only sources fetched this session — not existing kb files. **Stale server warning**: If `server.py` was edited this session, the running process may be stale — edit the JSON files in `servers/docs_fetcher/` directly instead of calling the tool.
+**Python stdlib exemption**: `docs.python.org` sources are exempt from Source Registry registration only — do not add stdlib modules to any JSON. The kb file is still mandatory: propose the `docs.python.org` URL, wait for approval, fetch, and write `kb_[module].md` before writing any code that uses the module. All other KB rules (staleness check, frontmatter format, naming convention) still apply.
+
+Register only sources fetched this session — not existing kb files.
