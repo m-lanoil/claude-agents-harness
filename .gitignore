@@ -217,13 +217,15 @@ __marimo__/
 # Project-local artifacts (not committed)
 sandbox/
 kb/
-logs/
+logs/*
+!logs/*TEMPLATE*
 output/
 TOOL_LOG.md
 KB_STALENESS_LOG.md
 SERVER_FRESHNESS_ALERTS.md
 .mcp.json
-.claude/
+.claude/*
+!.claude/*.template.json
 workers/content/memory/
 servers/docs_fetcher/libraries.json
 servers/docs_fetcher/clis.json

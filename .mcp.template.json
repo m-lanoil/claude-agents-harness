@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "system_monitor": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--project",
+        "<YOUR_PROJECT_ROOT>/servers/system_monitor",
+        "run",
+        "<YOUR_PROJECT_ROOT>/servers/system_monitor/server.py"
+      ],
+      "env": {}
+    },
+    "docs_fetcher": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--project",
+        "<YOUR_PROJECT_ROOT>/servers/docs_fetcher",
+        "run",
+        "<YOUR_PROJECT_ROOT>/servers/docs_fetcher/server.py"
+      ],
+      "env": {}
+    }
+  }
+}
