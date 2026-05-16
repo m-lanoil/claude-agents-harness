@@ -98,4 +98,5 @@ sandbox/<project_name>/
 - **Dependency Check**: Before running `uv add` or `pip install`, verify the package is well-known and relevant. No obfuscated or suspicious packages.
 
 ## ML Tasks
+- **Sandbox conventions**: Before writing any output logic for an ML test script, check `./sandbox/` for convention documents (e.g. `ML_TEST_OUTPUT_CONVENTION.md`). If one exists, apply it — do not invent a different output structure. This check is mandatory and belongs in your Task Start Checklist active rules step.
 - **Model-dataset fit**: Before choosing a model, state its known constraints relative to dataset size and flag any mismatch. For example, `HistGradientBoostingClassifier` is optimised for large datasets (early stopping only activates at ≥10,000 samples); on smaller datasets, `RandomForestClassifier` or `GradientBoostingClassifier` may be more appropriate. Surface the tradeoff and let the user decide.
