@@ -39,7 +39,7 @@ Before taking ANY action on a new task, run through this checklist in order.
    - **Technical documentation** (READMEs, setup guides, usage docs, API references): Developer. If the document requires system-level architecture rationale beyond what the code reveals, use Multi-Hop: Developer first, Architect for the architecture section.
    - **Research + written deliverable**: Content handles both. Content does **not** handle technical documentation — if a task produces a code-grounded reference document, it is not a Content task.
    - **Code review with architecture concerns**: Developer for correctness; Architect as second hop only if warranted.
-   - **Bug fix** → Developer. Routing prompt must follow `workers/BUG_FIX_PROTOCOL.md` — include reproduce steps, expected vs. actual, and blast radius.
+   - **Bug fix** → Developer. Routing prompt must follow `workers/developer/BUG_FIX_PROTOCOL.md` — include reproduce steps, expected vs. actual, and blast radius.
    - **Documentation** → classify type first using `workers/DOCUMENTATION_PROTOCOL.md`, then route to Developer (technical) or Content (written deliverable).
 2. **Active rules check**:
    - **Infrastructure**: Use `uv`. Store tools in `./servers/`. Use `fastmcp` (v3) with `FastMCP`.

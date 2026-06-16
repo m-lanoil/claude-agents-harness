@@ -97,4 +97,4 @@ Register only sources fetched this session — not existing kb files.
 
 ## Task-Type Protocols
 Workers: when your task matches a type below, read and follow the protocol file before proceeding.
-- **Bug fix** → `BUG_FIX_PROTOCOL.md` | **Documentation** → `DOCUMENTATION_PROTOCOL.md` | **Mid-task context received** → `CONTEXT_INTAKE_PROTOCOL.md`
+- **Bug fix** → `../developer/BUG_FIX_PROTOCOL.md` | **Documentation** → `DOCUMENTATION_PROTOCOL.md` | **Mid-task context received** → `CONTEXT_INTAKE_PROTOCOL.md`

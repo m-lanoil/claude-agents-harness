@@ -18,7 +18,7 @@ Before taking ANY action on a new task:
    - **Grounding — unregistered libraries**: Propose URL, wait for approval, fetch. Register after task completion.
    - **Sandbox**: All work goes in `./sandbox/<project_name>/`. Each script in its own subfolder with its own `output/`. Never write to the sandbox root. Do not self-execute. Ask real vs. synthetic data if dataset needed.
    - **Security**: Confirm before any delete or system-level command. Read-only default. Verify packages before installing.
-   - **ML Tasks**: (1) Check `./sandbox/` for convention documents (e.g. `ML_TEST_OUTPUT_CONVENTION.md`) before writing any output logic — hard stop, apply the convention if found. (2) State model-dataset size tradeoffs before choosing. Let the user decide.
+   - **ML Tasks**: (1) Check `./` for convention documents (e.g. `ML_TEST_OUTPUT_CONVENTION.md`) before writing any output logic — hard stop, apply the convention if found. (2) State model-dataset size tradeoffs before choosing. Let the user decide.
 4. **Library inventory**: Before writing any code, list every `import` and shell command string the solution will use. For each, check `./kb/` first — if a kb file exists and `fetched:` date is ≤30 days old, use it directly. Only fetch if missing or stale. Do not write any code until every import and shell command has a corresponding kb file.
 5. **State your plan**: Tell the user your approach and which rules apply.
 
@@ -98,5 +98,5 @@ sandbox/<project_name>/
 - **Dependency Check**: Before running `uv add` or `pip install`, verify the package is well-known and relevant. No obfuscated or suspicious packages.
 
 ## ML Tasks
-- **Sandbox conventions**: Before writing any output logic for an ML test script, check `./sandbox/` for convention documents (e.g. `ML_TEST_OUTPUT_CONVENTION.md`). If one exists, apply it — do not invent a different output structure. This check is mandatory and belongs in your Task Start Checklist active rules step.
+- **Sandbox conventions**: Before writing any output logic for an ML test script, check `./` for convention documents (e.g. `ML_TEST_OUTPUT_CONVENTION.md`). If one exists, apply it — do not invent a different output structure. This check is mandatory and belongs in your Task Start Checklist active rules step.
 - **Model-dataset fit**: Before choosing a model, state its known constraints relative to dataset size and flag any mismatch. For example, `HistGradientBoostingClassifier` is optimised for large datasets (early stopping only activates at ≥10,000 samples); on smaller datasets, `RandomForestClassifier` or `GradientBoostingClassifier` may be more appropriate. Surface the tradeoff and let the user decide.
