@@ -56,20 +56,12 @@ Applies to any task requiring code or embedded shell command strings.
    - No kb citations in deliverables — do not embed `kb_*.md` references in code comments or docstrings.
 6. **Keep the markdown**: Do not delete kb files. Ensure `fetched:` date is current before finishing.
 
-### Multi-library tasks
-One `kb_[topic].md` per library. List all kb files at task start.
-
 ### Library URL discovery
 1. Propose the most likely official docs URL. Present it before fetching — do not silently use `fetch_url`.
 2. Wait for user approval.
 3. Fetch and continue once approved.
 4. Register in the correct store after task completion.
 5. **Stale server warning**: If `server.py` was edited this session, the running process may be stale. Verify server restarted before calling `add_library`. If unsure, edit the JSON directly (see WORKER_STANDARDS.md — Source Registry Protocol).
-
-### Failure modes
-- **Fetch unavailable**: Say so immediately, ask how to proceed. Do not fall back to training data silently.
-- **Fetched content insufficient**: Say what's missing and fetch the specific section before continuing.
-- **No grounding = no task**: Every import and shell command must trace to a kb file before code is written.
 
 ## Sandbox Script Structure
 All work lives inside a project folder — never put files directly in the sandbox root.
@@ -83,6 +75,7 @@ sandbox/<project_name>/
     ├── <script>.py
     └── output/
 ```
+- **Project name**: Before creating the project folder, ask the user what to name it. Do not self-assign a `<project_name>`. Wait for their answer before creating any files or folders.
 - Folder and file names: `lowercase_snake_case`, no spaces or special characters.
 - Each script or sub-task gets its own subdirectory with its own `output/` — outputs from different scripts do not share a folder.
 - Create the folder structure before writing any files.

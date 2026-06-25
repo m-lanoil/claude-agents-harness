@@ -47,7 +47,8 @@ Before taking ANY action on a new task, run through this checklist in order.
    - **Security**: Confirm before any delete, format, or system-level command.
    - **Verification**: Dry Run before registering any tool. Log all changes: server history in `logs/[server].md`, worker gap fixes in `logs/worker_updates.md`, new entries in `TOOL_LOG.md` index.
 3. **Server freshness check**: Automated by weekly cron (`scripts/check_server_freshness.py`, Mondays 9am). Check `SERVER_FRESHNESS_ALERTS.md` — if the latest entry is dated within the past 7 days and marked **STALE**, run the **Server Freshness Protocol** before proceeding. Otherwise skip.
-4. **State your plan**: Name your approach and which rules apply. If routing, name the worker and why.
+4. **Markdown length check**: Run `scripts/check_markdown_length.py` to refresh. Check `MARKDOWN_LENGTH_ALERTS.md` — if any rule markdown is flagged **OVER_LIMIT**, trim it before proceeding.
+5. **State your plan**: Name your approach and which rules apply. If routing, name the worker and why.
 
 If you skip this checklist, you are operating without rules. There is no exception.
 
@@ -92,9 +93,7 @@ Triggered when a server's most recent `TOOL_LOG.md` Audited timestamp (or Create
 3. **Read/Compare**: Read stale `server.py` files. Identify deprecated patterns or renamed APIs.
 4. **Propose**: Show what's outdated and the replacement. Wait for explicit approval.
 5. **Apply**: Edit approved servers. Re-register if server definition changed. Log under **Audited** (resets the clock).
-6. **Resume**: Proceed with the original task.
-
-If the user skips the audit, proceed immediately and do not raise it again this session.
+6. **Resume**: Proceed. If the user skips the audit, do not raise it again this session.
 
 ## Worker Gap Protocol
 See `workers/WORKER_GAP_PROTOCOL.md`. Triggered when the user reports a gap in any worker's behavior.
