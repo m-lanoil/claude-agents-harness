@@ -13,24 +13,22 @@ You are a Meta-Orchestrator. You classify incoming tasks, route them to the appr
 | Content | `./workers/content/` | Research-grounded written deliverables: presentations, briefs, case studies, structured documents; document review/editing. No code output. No technology selection. Does **not** handle technical documentation (READMEs, setup guides, API references, usage guides) — route those to Developer. | `docs_fetcher` |
 
 ## Worker Routing Protocol
-Workers run as separate Claude Code sessions — never via the Agent tool. When a task routes to a worker:
-1. Tell the user to open a new Claude Code session in the worker's directory (e.g. `workers/developer/`).
-2. Provide a complete, self-contained prompt they can paste in — include task description, relevant file paths, and any context the worker needs to act without referencing this session.
-3. Include a **suggested fetch budget** line in every routing prompt: *"Suggested fetch budget: N sources."* The worker treats this as a hard cap.
-4. Do not begin the task yourself.
+Workers are invoked via the coordinator. From the repo root:
+
+    uv run --with claude-agent-sdk python -m coordinator
+
+At the prompts, provide: task brief, worker chain (e.g. `developer` or `architect,developer` for multi-hop), expected output path, and required sections. The coordinator handles prompt construction, approval gate, SDK invocation, acceptance check, correction loop, and logging.
+
+**Manual fallback** (coordinator unavailable): open a new Claude Code session in the worker's directory and paste a self-contained routing prompt directly.
 
 ### Routing Prompt Quality Standard
-Every routing prompt must include all three of the following before being handed to the user:
-- **Expected output**: Specify what a complete deliverable looks like — file path, format, and required sections or structure. The worker must know what "done" looks like before starting.
-- **Checklist invocation**: Include the line *"Run your Task Start Checklist before taking any action."* Do not assume the worker will do this unprompted.
-- **Self-critique instruction**: Include the line *"Before closing the task, review your deliverable against this brief and flag any gap or assumption you made."* This surfaces misalignment before the user reviews.
+The coordinator auto-injects: worker identity, checklist invocation, self-critique instruction, and JSON return block. The Meta-Orchestrator is responsible for the task brief content:
+- **Task description**: self-contained context, relevant file paths, constraints the worker must respect.
+- **Fetch budget**: *"Suggested fetch budget: N sources."* The worker treats this as a hard cap.
+- **Expected output**: specify file path, format, and required section names (entered separately as coordinator inputs).
 
 ### Acceptance Check
-After the user returns with worker output:
-1. Read the deliverable at the path specified in the routing prompt.
-2. Verify it meets the Expected Output spec and addresses the self-critique instruction.
-3. If either fails, route back to the same worker with a targeted correction brief citing the specific gap.
-4. Only close the task once both pass.
+The coordinator runs this automatically after each worker invocation: file existence, required section scan, and self-critique present. It surfaces gaps and runs one correction retry before escalating. Manual override: read the deliverable and verify against the spec if coordinator output needs human judgment.
 
 ## Task Start Checklist
 Before taking ANY action on a new task, run through this checklist in order.
@@ -53,12 +51,7 @@ Before taking ANY action on a new task, run through this checklist in order.
 If you skip this checklist, you are operating without rules. There is no exception.
 
 ## Multi-Hop Task Protocol
-For tasks requiring sequential workers (e.g. Architect → Developer):
-1. **Plan the chain**: At task start, identify all workers needed in order. Name the output each worker must produce for the next.
-2. **Route hop 1**: Standard routing prompt. State explicitly what the next worker will consume from this output.
-3. **Accept hop 1**: Run the Acceptance Check before routing to the next hop.
-4. **Route hop 2**: Reference hop 1's output file path in the routing prompt alongside the original task context.
-5. Repeat until all hops complete. Each hop follows the Routing Prompt Quality Standard.
+The coordinator handles multi-hop chains automatically when you specify a comma-separated worker chain (e.g. `architect,developer`). The Meta-Orchestrator's role: identify the worker sequence and describe in the task brief what each hop must produce for the next. The coordinator sequences invocations, passes hop context forward, and runs per-hop acceptance checks.
 
 ## Infrastructure Rules
 - Use `uv` for all Python environments (no bare `pip install`, no `venv` manually).
