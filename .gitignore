@@ -224,6 +224,7 @@ output/*
 TOOL_LOG.md
 KB_STALENESS_LOG.md
 SERVER_FRESHNESS_ALERTS.md
+MARKDOWN_LENGTH_ALERTS.md
 .mcp.json
 .claude/*
 !.claude/*.template.json

@@ -53,7 +53,7 @@ Applies to any task requiring code or embedded shell command strings.
 3. **Reference only the markdown**: All code decisions must trace to `./kb/kb_[topic].md`. If the answer isn't there, fetch more.
 4. **Import audit**: After writing code, verify every import and shell command traces to a kb file. Fetch and update if anything is ungrounded.
 5. **Cite your grounding**: Tell the user which decisions came from which kb file.
-   - No kb citations in deliverables — do not embed `kb_*.md` references in code comments or docstrings.
+   - **No agent artifacts in code**: Never embed `kb_*.md` references, grounding notes, internal paths, run commands, or orchestration metadata in code comments or docstrings — code must be clean of all agent-internal context.
 6. **Keep the markdown**: Do not delete kb files. Ensure `fetched:` date is current before finishing.
 
 ### Library URL discovery
