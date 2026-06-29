@@ -9,12 +9,12 @@ Every worker `CLAUDE.md` must include all six items, regardless of mandate.
 
 | # | Requirement | What it must say |
 |---|---|---|
-| 1 | **URL approval gate** | Before fetching any URL not already registered in the Source Registry (`list_libraries`, `list_clis`, `list_other_sources`), propose it to the user and wait for explicit approval. No silent fetches. |
+| 1 | **URL approval gate** | Only fetch URLs already registered in the Source Registry (`list_libraries`, `list_clis`, `list_other_sources`) or explicitly listed in the task brief. Unregistered, un-briefed URLs: do not fetch — flag in self-critique instead. |
 | 2 | **Failure modes** | If a fetch fails or returns insufficient content, stop immediately, say so, and ask how to proceed. No silent fallback to training data or unverified content. |
 | 3 | **Citation requirement** | Every factual claim, benchmark, or recommendation must trace to a named `kb/` file — not just a URL. "Cite sources inline" alone is not sufficient. |
 | 4 | **No unverified data** | If a claim cannot be traced to a fetched source in `kb/`, flag it explicitly in the deliverable rather than including it as fact. |
 | 5 | **Sandboxing** | File writes explicitly scoped based on worker type. **Deliverable workers** (Architect, Content): `./kb/` and `../../output/` only. **Code workers** (Developer): all work (scripts, data, outputs, requirements) lives in `./sandbox/<project_name>/`; final deliverables (PDFs, structured outputs for the user) to `../../output/`. Never put files directly in the sandbox root. Use `lowercase_snake_case` for all folder and file names. |
-| 6 | **Human-in-the-loop** | Confirm before any action that is hard to reverse or that fetches from an unregistered external source. |
+| 6 | **Human-in-the-loop** | Confirm before any action that is hard to reverse. URL approval happens pre-task via the task brief — do not pause mid-task to request it. |
 
 These six items must appear as explicit rules — not implied by other sections. If a worker's mandate makes one item not applicable, note that explicitly rather than omitting the section.
 
@@ -32,7 +32,7 @@ Every worker's checklist must follow this order:
 Before using any kb file, and before any fetch, consult `KB_STALENESS_LOG.md` at the project root for a pre-computed staleness overview (updated by weekly cron, Mondays 9am). Then apply this logic to each source you will actually use:
 - **kb file exists, `fetched:` ≤30 days** → use directly. Do not re-fetch.
 - **kb file exists, `fetched:` >30 days** → stale. Re-fetch and update before using.
-- **kb file missing** → fetch (subject to URL approval gate). Save before proceeding.
+- **kb file missing** → fetch only if the URL is in the Source Registry or task brief; otherwise flag in self-critique.
 
 ### KB file naming convention
 All kb files must use the prefix `kb_` followed by a lowercase snake_case topic slug: `kb_[topic].md` (e.g., `kb_fastmcp.md`, `kb_ev_charging_market.md`). No other naming scheme is permitted — do not use suffixes like `_grounding` or `_sources`.
@@ -48,35 +48,19 @@ fetched: YYYY-MM-DD
 ```
 
 ### Token Budget Protocol
-1. **Pre-task declaration** — before any fetch, list expected call count, sources, and any planned `crawl_docs`. Wait for user acknowledgment.
-1a. **Budget conflict gate** — immediately after the library inventory and before making any fetches: count the fetches the inventory requires and compare to the budget. If required fetches exceed the budget, STOP. Do not fetch. Do not write code. Report to the user using this structure:
-
-   > **Budget conflict — cannot proceed without approval.**
-   >
-   > Imports requiring kb files: `[list each one]`
-   > Fetches needed: N | Budget remaining: M
-   >
-   > Options:
-   > A. Approve N additional fetches — I will ground all imports then write the code.
-   > B. Approve fetches for required imports only; optional deps stay ungrounded and their features are excluded.
-   > C. Restructure the script to reduce the import surface — tell me which deps to drop.
-   >
-   > Which option?
-
-   Wait for explicit selection before taking any further action. The structured options are required — a vague "can I fetch more?" prompt is not sufficient.
-
-2. **Checkpoint rule** — every 3 fetch calls, call `get_fetch_stats` and report one-line summary. Wait for "continue."
-3. **Large-fetch gate** — `crawl_docs` requires explicit approval with URL and `max_pages` stated.
-4. **Budget cap** — the routing prompt's suggested fetch budget is a hard cap; worker must ask before exceeding it.
+1. **Pre-task declaration** — fetch budget and any approved URLs for non-registered sources are specified in the task brief. Do not re-declare mid-task — proceed within the budget given.
+2. **Budget conflict** — if required fetches exceed the budget, complete best-effort within budget and flag the shortfall in self-critique. Do not halt mid-task.
+3. **Checkpoint rule** — every 3 fetch calls, call `get_fetch_stats`. If budget is nearly exhausted, stop fetching and proceed with what's been grounded.
+4. **Large-fetch gate** — `crawl_docs` must be explicitly listed in the task brief with URL and `max_pages` — do not use it unless specified.
+5. **Budget cap** — the routing prompt's suggested fetch budget is a hard cap. Do not exceed it — flag in self-critique if budget runs out.
 
 ### Handoff Rule
 When you identify a dependency on another worker mid-task — or when your task is complete and further work requires a different mandate — do not generate a routing prompt for that worker yourself. The Meta-Orchestrator is responsible for all routing decisions and prompt construction.
 
 Required behaviour at a handoff boundary:
 1. Complete your portion of the task within your mandate.
-2. State explicitly what is needed next and which worker handles it (e.g. *"This requires Developer work: [description of what is needed]"*).
-3. Instruct the user to return to the Meta-Orchestrator session with that context.
-4. Stop there. Do not draft the next worker's prompt.
+2. State what is needed next and which worker handles it in your self-critique.
+3. Stop there. Do not draft the next worker's prompt.
 
 Generating cross-worker routing prompts bypasses the orchestrator's classification step, skips routing protocol checks, and breaks the audit trail.
 

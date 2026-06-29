@@ -10,18 +10,21 @@ WORKER_DIRS: dict[str, Path] = {
     "developer": _REPO_ROOT / "workers" / "developer",
     "architect": _REPO_ROOT / "workers" / "architect",
     "content": _REPO_ROOT / "workers" / "content",
+    "researcher": _REPO_ROOT / "workers" / "researcher",
 }
 
 _WORKER_TOOLS: dict[str, list[str]] = {
     "developer": ["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
     "architect": ["Read", "Glob", "Grep", "Write"],
     "content": ["Read", "Glob", "Grep", "Write"],
+    "researcher": ["Read", "Glob", "Grep", "Write"],
 }
 
 _WORKER_MCP_NAMES: dict[str, list[str]] = {
     "developer": ["docs_fetcher", "system_monitor"],
     "architect": ["docs_fetcher"],
     "content": ["docs_fetcher"],
+    "researcher": ["docs_fetcher"],
 }
 
 
@@ -40,6 +43,23 @@ _ALL_MCP: dict[str, dict] = {
     "docs_fetcher": _uv_server("docs_fetcher"),
     "system_monitor": _uv_server("system_monitor"),
 }
+
+
+def build_validator_options() -> ClaudeAgentOptions:
+    """Build read-only ClaudeAgentOptions for the Validator internal process.
+
+    The Validator is not a routable worker — it is an internal coordinator process.
+    It receives no MCP servers and no write tools to prevent any modification to
+    the deliverable under review (grounded: kb_claude_agent_sdk.md, §ClaudeAgentOptions).
+    cwd is set to repo root so the Validator can access deliverables at any output/ path.
+    """
+    return ClaudeAgentOptions(
+        allowed_tools=["Read", "Glob", "Grep"],
+        mcp_servers={},
+        permission_mode="acceptEdits",
+        cwd=str(_REPO_ROOT.resolve()),
+        setting_sources=[],
+    )
 
 
 def build_options(worker_name: str, resume: Optional[str] = None) -> ClaudeAgentOptions:

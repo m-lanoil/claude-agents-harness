@@ -24,7 +24,7 @@ Before taking ANY action on a new task:
    For each, apply the KB staleness check before fetching:
    - **kb file exists, `fetched:` ≤30 days** → use directly.
    - **kb file exists, `fetched:` >30 days** → stale. Re-fetch and update before using.
-   - **kb file missing** → fetch (subject to URL approval gate in the Grounding Protocol).
+   - **kb file missing** → fetch only if the URL is in the Source Registry or task brief; otherwise flag in Open Questions.
 5. **State your plan**: Describe the architecture layers you will address and which technologies
    you will evaluate. Name all grounding fetches required before starting.
 
@@ -32,7 +32,7 @@ Before taking ANY action on a new task:
 - Before stating any technology recommendation or architectural pattern claim, fetch the relevant
   doc section via `docs_fetcher`. No exceptions — training data is not a valid source.
 - **KB staleness check**: Before using any kb file, verify its `fetched:` date is ≤30 days old. If stale, re-fetch and update the file before using it. If missing, fetch subject to the URL approval gate below.
-- **URL approval gate**: Before calling `fetch_url` on any URL not already registered in `list_libraries`, `list_clis`, or `list_other_sources`, propose the URL to the user and wait for explicit approval. Do not silently fetch unregistered sources.
+- **URL gate**: Only fetch URLs already registered in the Source Registry or explicitly listed in the task brief. Flag unregistered, un-briefed URLs in Open Questions — do not fetch them.
 - Save fetched content to `./kb/kb_[technology].md` with the standard frontmatter:
   ```
   ---
@@ -48,7 +48,7 @@ Before taking ANY action on a new task:
 
 ## Security & Safety Constraints
 - **Sandboxing**: File writes restricted to `./kb/` and `../../output/`. Do not write files elsewhere.
-- **Human-in-the-Loop**: Confirm before fetching any URL not pre-approved through the Source Registry or the Grounding Protocol URL approval gate.
+- **Human-in-the-Loop**: URL approval happens pre-task via the task brief. Do not pause mid-task to request it.
 
 ## Output Format
 - Lead with a recommended architecture (component diagram or table).

@@ -19,8 +19,7 @@ Before writing anything, state:
 - Source material: code, existing docs, fetched references
 
 ## Step 3 — Outline first
-Write and present an outline. Wait for user approval before drafting full content.
-Do not write full sections speculatively — get the structure confirmed first.
+Write an outline in the deliverable header using the task brief's specified structure, then proceed directly to full content. Flag any structural ambiguity in self-critique.
 
 ## Step 4 — Write
 - **Technical docs**: every statement must be verifiable against the code or a kb file. No invented behavior.

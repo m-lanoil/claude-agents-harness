@@ -8,19 +8,89 @@ Implements the architecture described in `output/coordinator_loop_architecture.m
 From the repo root:
 
 ```bash
-# With a task string:
+# Pre-specify all routing values (Meta-Orchestrator form — skips three interactive prompts):
+uv run --with claude-agent-sdk python -m coordinator "Your task description here" \
+  --workers developer \
+  --output ../../output/final_outputs/report.md \
+  --sections "Section 1,Section 2"
+
+# Multi-hop chain example:
+uv run --with claude-agent-sdk python -m coordinator "Your task description here" \
+  --workers architect,developer \
+  --output ../../output/final_outputs/report.md \
+  --sections "Summary,Tradeoffs,Implementation Plan"
+
+# Interactive fallback — omit any or all of --workers/--output/--sections to be prompted:
 uv run --with claude-agent-sdk python -m coordinator "Your task description here"
 
-# Interactive task prompt:
+# Interactive task prompt (all args omitted):
 uv run --with claude-agent-sdk python -m coordinator
 ```
 
-The coordinator will interactively ask for:
-1. **Worker chain** — e.g. `developer`, `architect`, or `architect,developer` for multi-hop
-2. **Expected output path** — e.g. `../../output/report.md`
-3. **Required sections** — comma-separated header names to verify in acceptance check
+When `--workers`, `--output`, and `--sections` are provided, the coordinator skips the
+three interactive routing prompts (worker chain, output path, required sections).
+When any of those flags are omitted, the coordinator falls back to the interactive `input()`
+prompt for that value — backward-compatible with the original interactive workflow.
 
-One **human approval gate** is shown before each worker is invoked. You can approve, edit, or abort.
+## Pre-registering approved URLs (`--approved-urls`)
+
+The `--approved-urls` flag lets the Meta-Orchestrator inject URLs into the Source Registry
+**before** any worker is invoked, so workers can fetch them without needing mid-task approval.
+
+**Format** — a JSON string with up to three optional keys:
+
+```json
+{"libraries": {"name": "url"}, "clis": {"name": "url"}, "other": {"name": "url"}}
+```
+
+Each key maps to the corresponding registry file in `servers/docs_fetcher/`:
+
+| JSON key | Registry file |
+|---|---|
+| `libraries` | `libraries.json` |
+| `clis` | `clis.json` |
+| `other` | `other_sources.json` |
+
+Any key may be omitted. The operation is **idempotent** — names already present in the
+registry are not overwritten. A log line is printed for each type showing how many entries
+were added.
+
+**Example** — register a new library and an "other" reference before running a task:
+
+```bash
+uv run --with claude-agent-sdk python -m coordinator "Fetch and summarise the httpx changelog" \
+  --workers developer \
+  --output ../../output/final_outputs/httpx_summary.md \
+  --sections "Summary,Key Changes" \
+  --approved-urls '{"libraries": {"httpx-changelog": "https://www.python-httpx.org/changelog/"}}'
+```
+
+The coordinator will write `httpx-changelog` into `servers/docs_fetcher/libraries.json`
+before invoking the Developer worker, so `fetch_docs` / `add_library` calls for that name
+succeed without an interactive pause.
+
+## Output path conventions
+
+**`--output` paths are worker-relative.** The coordinator resolves them against the final
+worker's directory (`workers/<worker>/`) before passing them to the acceptance check.
+Use `../../output/...` notation so the path resolves correctly from the worker cwd:
+
+| Path type | Location | Example |
+|---|---|---|
+| Final deliverable | `output/final_outputs/` | `../../output/final_outputs/report.md` |
+| Intermediate hop files (auto-managed) | `output/intermediate_outputs/` | *(set by coordinator)* |
+
+Intermediate hop files are written automatically by the coordinator for each non-final hop
+in a multi-hop chain. They are named `coordinator_hop_{N}_{worker}.md` and placed in
+`output/intermediate_outputs/`. These are gitignored and not committed.
+
+Final deliverables should be directed to `output/final_outputs/` via `--output`. These are
+also gitignored (local-only) but are the permanent output for the user.
+
+**Interactive HITL checks that always fire regardless of pre-specified args:**
+1. **Prompt approval gate** — shown before each worker invocation; you can approve, edit, or abort.
+2. **Gap acknowledgment** — pauses if the worker reports any gaps; must be acknowledged before continuing.
+3. **Correction retry gate** — if acceptance fails, you approve or abort before the retry attempt.
 
 ## Q2 — MCP Server Path Resolution
 

@@ -30,3 +30,11 @@ class AcceptanceResult:
     self_critique_present: bool
     gaps: List[str]
     correction_brief: Optional[str] = None
+
+
+@dataclass
+class ValidatorResult:
+    verdict: str
+    issues: list[dict]
+    confidence: float
+    summary: str

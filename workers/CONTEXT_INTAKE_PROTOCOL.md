@@ -14,11 +14,11 @@ Triggered when: the user provides additional context, clarification, or new cons
    - *"This changes [specific part of the plan]. Here is what I will do differently: [description]."*
    - *"This context conflicts with the original brief. Clarification needed: [question]."*
 
-4. **Get approval if plan changes**: If the plan changes, wait for explicit user approval before continuing. Do not silently absorb new context and proceed.
+4. **Adapt if plan changes**: If the plan changes, note the change in self-critique and proceed with the updated plan. Do not silently absorb new context without acknowledging it.
 
 5. **If work must be redone**: State which steps need to be repeated and redo them cleanly. Do not paper over earlier work.
 
 ## Rules
 - Never silently continue after receiving new context — acknowledgement is mandatory.
 - If the new context reveals the task belongs to a different worker, do not continue — flag it per the Handoff Rule in WORKER_STANDARDS.md.
-- Context that arrives after a deliverable is complete is a new task, not a revision — return to the Meta-Orchestrator.
+- Context that arrives after a deliverable is complete is a new task, not a revision — flag it in self-critique as out of scope.

@@ -10,24 +10,22 @@ Triggered when: a task is a bug fix (incorrect behavior, broken output, unexpect
    - Expected behavior
    - Actual behavior
 
-   If you cannot reproduce it, stop and ask the user for reproduction steps before proceeding.
+   If you cannot reproduce it, document the reproduction attempt in self-critique and proceed using the task brief's description as the authoritative specification.
 
 2. **Isolate**: Identify the specific line, function, or module causing the issue.
-   State your finding to the user before proposing any fix. Do not propose a fix until the root cause is named.
+   Document your finding in the deliverable before proposing any fix. Do not propose a fix until the root cause is named.
 
-3. **Propose**: Describe the intended fix and include:
+3. **Propose**: Document in the deliverable:
    - What will change
    - Blast radius: what else could be affected
 
-   Wait for explicit user approval before applying.
-
 4. **Apply**: Make the change. Fix the root cause only — no surrounding refactor or cleanup.
 
-5. **Verify**: Confirm the fix addresses the root cause. State which behavior changed and confirm adjacent behavior is unaffected. If verification requires running code, provide the command and wait.
+5. **Verify**: Confirm the fix addresses the root cause. State which behavior changed and confirm adjacent behavior is unaffected. If verification requires running code, provide the command in the deliverable. Only self-execute if the task brief explicitly instructs it.
 
 6. **Summarize**: One sentence — what was wrong and what changed.
 
 ## Rules
-- No fix may be applied before step 2 (Isolate) is complete and stated to the user.
+- No fix may be applied before step 2 (Isolate) is complete and documented in the deliverable.
 - Do not refactor surrounding code as part of a bug fix — that is a separate task.
 - If the root cause is in a different worker's domain (e.g. an architecture flaw), complete steps 1–2 only, then hand off per the Handoff Rule in WORKER_STANDARDS.md.

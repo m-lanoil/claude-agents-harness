@@ -4,17 +4,25 @@ Entry point: run(task) async. Called from __main__.py or a future scheduled trig
 """
 import asyncio
 import json
+import re
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 from claude_agent_sdk import query
 
-from .schemas import RoutingPrompt, WorkerResult, AcceptanceResult
-from .worker_registry import WORKER_DIRS, build_options
+from .schemas import RoutingPrompt, WorkerResult, AcceptanceResult, ValidatorResult
+from .worker_registry import WORKER_DIRS, build_options, build_validator_options
 from .acceptance import parse_worker_result, acceptance_check
 
 _REPO_ROOT = Path(__file__).parent.parent
 _WORKER_UPDATES_LOG = _REPO_ROOT / "logs" / "worker_updates.md"
+_DOCS_FETCHER_DIR = _REPO_ROOT / "servers" / "docs_fetcher"
+_REGISTRY_FILES = {
+    "libraries": "libraries.json",
+    "clis": "clis.json",
+    "other": "other_sources.json",
+}
 
 _JSON_RETURN_CONVENTION = """
 ---
@@ -29,6 +37,60 @@ At the end of your response, output a JSON block with this exact structure — n
 }
 ```
 """
+
+# Matches the last ```json ... ``` block — same pattern as acceptance.py
+_JSON_BLOCK_RE = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
+_VALIDATOR_REQUIRED_KEYS = {"verdict", "issues", "confidence", "summary"}
+_VALIDATOR_CONFIDENCE_THRESHOLD = 0.7
+
+
+# ---------------------------------------------------------------------------
+# URL pre-registration
+# ---------------------------------------------------------------------------
+
+def _preregister_urls(approved_urls_json: str | None) -> None:
+    """Merge approved URLs into the Source Registry JSON files before worker invocation.
+
+    Parses *approved_urls_json* as a JSON object with optional keys "libraries",
+    "clis", and "other" (each mapping name → url). For each key, loads the
+    corresponding registry file in servers/docs_fetcher/, merges new entries
+    (skipping any name already present), and writes back. Creates the file as an
+    empty object if it does not exist.
+
+    Idempotent: re-running with the same JSON produces no changes and no errors.
+    Returns immediately if *approved_urls_json* is None or empty.
+    """
+    if not approved_urls_json:
+        return
+    try:
+        approved = json.loads(approved_urls_json)
+    except json.JSONDecodeError as exc:
+        print(f"[preregister_urls] WARNING: could not parse --approved-urls JSON: {exc}")
+        return
+
+    for key, filename in _REGISTRY_FILES.items():
+        entries = approved.get(key)
+        if not entries:
+            continue
+        registry_path = _DOCS_FETCHER_DIR / filename
+        if registry_path.exists():
+            with registry_path.open("r", encoding="utf-8") as fh:
+                existing: dict = json.load(fh)
+        else:
+            existing = {}
+        new_entries = {k: v for k, v in entries.items() if k not in existing}
+        if new_entries:
+            existing.update(new_entries)
+            with registry_path.open("w", encoding="utf-8") as fh:
+                json.dump(existing, fh, indent=2)
+            print(
+                f"[preregister_urls] Registered {len(new_entries)} {key} URL(s): "
+                f"{list(new_entries)}"
+            )
+        else:
+            print(
+                f"[preregister_urls] No new {key} URLs to register (all already present)."
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -70,6 +132,55 @@ def build_routing_prompt(
     )
 
 
+def _build_validator_prompt(routing: RoutingPrompt, result: WorkerResult) -> str:
+    """Build the prompt for the Validator internal process."""
+    sections_str = (
+        "\n".join(f"- {s}" for s in routing.required_sections)
+        if routing.required_sections
+        else "- (none specified)"
+    )
+    return (
+        "You are a Validator. Your task is to review a completed deliverable against "
+        "its original task specification and return a structured verdict.\n\n"
+        f"## Original Task\n{routing.prompt_text}\n\n"
+        f"## Required Sections\n{sections_str}\n\n"
+        f"## Deliverable Path\n{result.deliverable_path}\n\n"
+        f"## Worker Self-Critique\n{result.self_critique}\n\n"
+        "## Validation Instructions\n"
+        "Use the Read tool to read the deliverable at the path above. "
+        "Evaluate it against these four criteria:\n\n"
+        "1. **Coverage**: Does the deliverable address all aspects of the task description? "
+        "Flag any task requirement with no corresponding content.\n"
+        "2. **Substantiveness**: Are required sections substantive, or do they contain "
+        "placeholder text, vague assertions, or content that merely echoes the task brief "
+        "without adding analysis?\n"
+        "3. **Internal consistency**: Do the recommendations in one section contradict "
+        "those in another?\n"
+        "4. **Grounding honesty**: If the deliverable claims external sources, are those "
+        "claims plausible given the stated worker tools? Flag structurally suspicious claims.\n\n"
+        "## Output Format\n"
+        "At the end of your response, output a JSON block with this exact structure — "
+        "no trailing text after it:\n\n"
+        "```json\n"
+        "{\n"
+        '  "verdict": "pass",\n'
+        '  "issues": [\n'
+        '    {\n'
+        '      "severity": "critical",\n'
+        '      "section": "<section name or global>",\n'
+        '      "description": "<what is missing or wrong>"\n'
+        '    }\n'
+        '  ],\n'
+        '  "confidence": 0.85,\n'
+        '  "summary": "<one sentence>"\n'
+        "}\n"
+        "```\n\n"
+        'verdict must be "pass" or "fail". '
+        "confidence is 0.0–1.0 (your self-assessed certainty that the verdict is correct). "
+        "issues is an empty list for a clean pass."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Worker invocation
 # ---------------------------------------------------------------------------
@@ -107,13 +218,16 @@ async def _invoke_worker(
 async def _run_single_hop(
     routing: RoutingPrompt,
     full_prompt: str,
+    resume_session: Optional[str] = None,
 ) -> tuple[AcceptanceResult, WorkerResult]:
     """Invoke worker once; parse result; run acceptance check.
 
     Returns (AcceptanceResult, WorkerResult). On parse failure, WorkerResult
     has status='malformed' and acceptance fails automatically.
+    resume_session: optional session ID for resuming a prior worker session
+    (used by _handle_validator_result for semantic correction retries).
     """
-    raw_text, session_id = await _invoke_worker(routing.worker, full_prompt)
+    raw_text, session_id = await _invoke_worker(routing.worker, full_prompt, resume_session)
 
     result = parse_worker_result(raw_text)
     if result is None:
@@ -173,6 +287,178 @@ def _append_worker_updates_log(worker: str, note: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Validator internal process
+# ---------------------------------------------------------------------------
+
+async def _invoke_validator(routing: RoutingPrompt, result: WorkerResult) -> ValidatorResult:
+    """Run semantic validation on a completed deliverable.
+
+    Invokes a read-only Claude Agent session with allowed_tools [Read, Glob, Grep]
+    and no MCP servers (grounded: kb_claude_agent_sdk.md, §Core interface and
+    §ClaudeAgentOptions). Parses the final JSON block from the response using
+    _JSON_BLOCK_RE (same pattern as parse_worker_result in acceptance.py).
+    Parse errors are treated as a fail verdict with a single critical issue.
+    """
+    prompt = _build_validator_prompt(routing, result)
+    options = build_validator_options()
+
+    raw_text = ""
+    async for message in query(prompt=prompt, options=options):
+        if hasattr(message, "result"):
+            raw_text = message.result
+
+    matches = list(_JSON_BLOCK_RE.finditer(raw_text))
+    if matches:
+        try:
+            data = json.loads(matches[-1].group(1))
+            if _VALIDATOR_REQUIRED_KEYS.issubset(data):
+                return ValidatorResult(
+                    verdict=str(data["verdict"]),
+                    issues=list(data.get("issues", [])),
+                    confidence=float(data.get("confidence", 0.0)),
+                    summary=str(data.get("summary", "")),
+                )
+        except (json.JSONDecodeError, ValueError, TypeError):
+            pass
+
+    # Parse error — no valid JSON block
+    print("\n[Validator] Parse error — no valid JSON block in Validator output. Treating as fail.")
+    _append_worker_updates_log(
+        routing.worker,
+        "validator_fail: parse error — no valid JSON block in Validator output",
+    )
+    return ValidatorResult(
+        verdict="fail",
+        issues=[{
+            "severity": "critical",
+            "section": "global",
+            "description": "Validator returned malformed output — no valid JSON block found",
+        }],
+        confidence=0.0,
+        summary="Validator output parse error — treating as fail.",
+    )
+
+
+async def _handle_validator_result(
+    validator_result: ValidatorResult,
+    routing: RoutingPrompt,
+    result: WorkerResult,
+    retry_available: bool = True,
+) -> bool:
+    """Handle a ValidatorResult. Returns True to proceed, False to abort.
+
+    Pass paths:
+      - confidence >= threshold: print summary and return True.
+      - confidence < threshold: print low-confidence warning, prompt user, return True.
+    Fail paths:
+      - Minor issues only (soft gate): advisory print, user decides.
+      - Critical issues (hard gate): semantic correction retry if retry_available;
+        otherwise escalate immediately.
+    Confidence threshold: _VALIDATOR_CONFIDENCE_THRESHOLD (0.7).
+    """
+    print(f"\n[Validator] {validator_result.summary}")
+
+    if validator_result.verdict == "pass":
+        if validator_result.confidence >= _VALIDATOR_CONFIDENCE_THRESHOLD:
+            print(f"[Validator] PASS (confidence: {validator_result.confidence:.2f})")
+            return True
+        # Low-confidence pass — surface to user before continuing
+        print(
+            f"[Validator] PASS with low confidence "
+            f"({validator_result.confidence:.2f} < {_VALIDATOR_CONFIDENCE_THRESHOLD}). "
+            "Review recommended."
+        )
+        input("Acknowledge low-confidence pass and press Enter to continue: ")
+        return True
+
+    # verdict == "fail"
+    critical = [i for i in validator_result.issues if i.get("severity") == "critical"]
+    minor = [i for i in validator_result.issues if i.get("severity") == "minor"]
+
+    print("\n[Validator] FAIL")
+    if critical:
+        print("  Critical issues:")
+        for issue in critical:
+            print(f"    • [{issue.get('section', 'global')}] {issue.get('description', '')}")
+    if minor:
+        print("  Minor issues:")
+        for issue in minor:
+            print(f"    • [{issue.get('section', 'global')}] {issue.get('description', '')}")
+
+    if not critical:
+        # Soft gate: minor issues only — user decides whether to proceed
+        print(f"\n[Validator] Advisory: {len(minor)} minor issue(s). Core task appears addressed.")
+        choice = input("Continue despite minor issues? (yes / abort): ").strip().lower()
+        if choice != "yes":
+            _append_worker_updates_log(
+                routing.worker,
+                "validator_fail: minor issues only, user aborted",
+            )
+            return False
+        return True
+
+    # Hard gate: critical issues present
+    if not retry_available:
+        print("\n[Validator] Retry budget exhausted. Escalating to user.")
+        _append_worker_updates_log(
+            routing.worker,
+            f"validator_fail: critical issues, retry budget exhausted: "
+            f"{[i.get('description', '') for i in critical]}",
+        )
+        return False
+
+    # Build semantic correction brief from Validator issues
+    issue_lines = "\n".join(
+        f"  [{i.get('section', 'global')}] ({i.get('severity', '?')}) {i.get('description', '')}"
+        for i in validator_result.issues
+    )
+    correction_brief = (
+        f"SEMANTIC CORRECTION REQUIRED:\n{validator_result.summary}\n\nIssues:\n{issue_lines}"
+    )
+    # Rebuild base routing prompt and append correction brief
+    base_prompt = build_routing_prompt(
+        worker_name=routing.worker,
+        task_description=routing.prompt_text,
+        expected_output_path=routing.expected_output_path,
+        required_sections=routing.required_sections,
+        hop_index=routing.hop_index,
+        total_hops=routing.total_hops,
+    )
+    correction_prompt = base_prompt + f"\n\n{correction_brief}"
+    correction_approved = _present_for_approval(correction_prompt, label="SEMANTIC CORRECTION PROMPT")
+    if not correction_approved:
+        print("Escalating to user — task not closed.")
+        _append_worker_updates_log(routing.worker, "validator_fail: user aborted semantic correction")
+        return False
+
+    # Resume original worker session for correction (grounded: kb_claude_agent_sdk.md, §Sessions)
+    retry_check, retry_result = await _run_single_hop(
+        routing, correction_approved, resume_session=result.session_id
+    )
+    if not retry_check.passed:
+        print(f"\n[Validator] Correction retry acceptance failed: {retry_check.correction_brief}")
+        _append_worker_updates_log(
+            routing.worker,
+            f"validator_fail: correction retry acceptance failed: {retry_check.correction_brief}",
+        )
+        return False
+
+    # Re-run Validator on corrected deliverable
+    retry_validator = await _invoke_validator(routing, retry_result)
+    print(f"\n[Validator] Retry result: {retry_validator.summary}")
+    if retry_validator.verdict != "pass":
+        print("\n[Validator] Retry also failed. Escalating to user.")
+        _append_worker_updates_log(
+            routing.worker,
+            f"validator_fail: retry also failed — {retry_validator.summary}",
+        )
+        return False
+
+    print(f"[Validator] Retry PASS (confidence: {retry_validator.confidence:.2f})")
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Multi-hop sequencing
 # ---------------------------------------------------------------------------
 
@@ -194,9 +480,12 @@ async def _execute_chain(
         # For multi-hop: intermediate hops write to a temp path; only the final
         # hop writes to expected_output_path.
         if hop_idx < total_hops - 1:
-            hop_output = f"../../output/coordinator_hop_{hop_idx + 1}_{worker_name}.md"
+            hop_output = f"../../output/intermediate_outputs/coordinator_hop_{hop_idx + 1}_{worker_name}.md"
         else:
             hop_output = expected_output_path
+        # Resolve to absolute path relative to the worker's cwd so acceptance_check
+        # can stat the file without the _REPO_ROOT prepend going two levels too high.
+        hop_output = str((WORKER_DIRS[worker_name] / hop_output).resolve())
 
         routing = RoutingPrompt(
             worker=worker_name,
@@ -224,6 +513,7 @@ async def _execute_chain(
             return False
 
         # Invoke + acceptance check
+        retry_used = False
         check, result = await _run_single_hop(routing, approved_prompt)
 
         if not check.passed:
@@ -235,6 +525,7 @@ async def _execute_chain(
                 return False
 
             # One correction retry with session resumption (Q5: enabled)
+            retry_used = True
             correction_prompt = approved_prompt + f"\n\nCORRECTION REQUIRED:\n{check.correction_brief}"
             retry_approved = _present_for_approval(correction_prompt, label="CORRECTION PROMPT")
             if not retry_approved:
@@ -247,6 +538,18 @@ async def _execute_chain(
                 print("Escalating to user — task not closed.")
                 _append_worker_updates_log(worker_name, f"Retry failed: {check.correction_brief}")
                 return False
+
+        # Semantic validation — runs only when acceptance passes (structural gate first)
+        validator_result = await _invoke_validator(routing, result)
+        proceed = await _handle_validator_result(
+            validator_result, routing, result, retry_available=not retry_used
+        )
+        if not proceed:
+            _append_worker_updates_log(
+                worker_name,
+                f"validator_fail: Hop {hop_idx + 1}/{total_hops} not closed by Validator",
+            )
+            return False
 
         # Gap escalation: surface all gaps to user before moving on (Q3: no silent close)
         if check.gaps:
@@ -273,8 +576,33 @@ async def _execute_chain(
 # Main entry point
 # ---------------------------------------------------------------------------
 
-async def run(task: str) -> None:
-    """Coordinator main loop. Interactive classification → human checkpoint → invoke → accept → log."""
+async def run(
+    task: str,
+    workers: Optional[str] = None,
+    output: Optional[str] = None,
+    sections: Optional[str] = None,
+    approved_urls: Optional[str] = None,
+) -> None:
+    """Coordinator main loop. Interactive classification → human checkpoint → invoke → accept → log.
+
+    Args:
+        task: Task description string (required).
+        workers: Pre-specified worker chain (e.g. 'developer' or 'architect,developer').
+                 When provided, skips the interactive worker-chain prompt.
+        output:  Pre-specified output path (e.g. '../../output/report.md').
+                 When provided, skips the interactive output-path prompt.
+        sections: Pre-specified required sections, comma-separated (e.g. 'Summary,Results').
+                  When provided, skips the interactive sections prompt.
+        approved_urls: Optional JSON string of URLs to pre-register into the Source Registry
+                       before invoking any worker. Format:
+                       '{"libraries": {"name": "url"}, "clis": {"name": "url"},
+                         "other": {"name": "url"}}' (any key may be omitted).
+
+    Interactive HITL checks that always fire regardless of pre-specified args:
+        - Prompt approval gate (approve / edit / abort before each worker invocation)
+        - Gap acknowledgment (user must acknowledge worker-reported gaps)
+        - Correction retry gate (user approves or aborts before correction attempt)
+    """
     print(f"\n{'#' * 60}")
     print("Coordinator: new task")
     print(f"{'#' * 60}")
@@ -283,7 +611,11 @@ async def run(task: str) -> None:
     # Step 1: Classification (human-guided; rules are in root CLAUDE.md)
     print("Step 1: Classification")
     print(f"Workers available: {', '.join(WORKER_DIRS)}")
-    worker_input = input("Enter worker name or multi-hop chain (e.g. 'architect,developer'): ").strip().lower()
+    if workers is not None:
+        worker_input = workers.strip().lower()
+        print(f"Worker chain (pre-specified): {worker_input}")
+    else:
+        worker_input = input("Enter worker name or multi-hop chain (e.g. 'architect,developer'): ").strip().lower()
     hop_workers = [w.strip() for w in worker_input.split(",") if w.strip()]
 
     unknown = [w for w in hop_workers if w not in WORKER_DIRS]
@@ -292,9 +624,21 @@ async def run(task: str) -> None:
         return
 
     # Step 2: Routing details
-    expected_output_path = input("Expected output path (e.g. ../../output/report.md): ").strip()
-    sections_raw = input("Required sections (comma-separated; leave blank for none): ").strip()
+    if output is not None:
+        expected_output_path = output.strip()
+        print(f"Output path (pre-specified): {expected_output_path}")
+    else:
+        expected_output_path = input("Expected output path (e.g. ../../output/report.md): ").strip()
+
+    if sections is not None:
+        sections_raw = sections
+        print(f"Required sections (pre-specified): {sections_raw if sections_raw else '(none)'}")
+    else:
+        sections_raw = input("Required sections (comma-separated; leave blank for none): ").strip()
     required_sections = [s.strip() for s in sections_raw.split(",") if s.strip()]
+
+    # Pre-register approved URLs into the Source Registry before worker invocation
+    _preregister_urls(approved_urls)
 
     # Steps 3-6: Human checkpoint + invoke + accept for each hop
     success = await _execute_chain(

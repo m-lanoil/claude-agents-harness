@@ -11,13 +11,19 @@ You are a Meta-Orchestrator. You classify incoming tasks, route them to the appr
 | Developer | `./workers/developer/` | Grounded code, sandbox scripts, ML tasks, system checks | `docs_fetcher`, `system_monitor` |
 | Architect | `./workers/architect/` | Technology selection, system architecture proposals, tradeoff analysis. No code output. | `docs_fetcher` |
 | Content | `./workers/content/` | Research-grounded written deliverables: presentations, briefs, case studies, structured documents; document review/editing. No code output. No technology selection. Does **not** handle technical documentation (READMEs, setup guides, API references, usage guides) — route those to Developer. | `docs_fetcher` |
+| Researcher | `./workers/researcher/` | Pre-task research and planning. Produces structured planning docs: problem summary, constraints, prior art, open questions, recommended worker chain. No code output. No architecture proposals. | `docs_fetcher` |
 
 ## Worker Routing Protocol
-Workers are invoked via the coordinator. From the repo root:
+Workers are invoked via the coordinator. The Meta-Orchestrator's role before each run:
+1. Draft the task brief in the conversation and state the worker chain, output path, and required sections.
+2. Wait for explicit user approval (or revision).
+3. Give the user this command to run in their terminal:
 
-    uv run --with claude-agent-sdk python -m coordinator
+```bash
+uv run --with claude-agent-sdk python -m coordinator "task brief" --workers developer --output ../../output/report.md --sections "Section 1,Section 2"
+```
 
-At the prompts, provide: task brief, worker chain (e.g. `developer` or `architect,developer` for multi-hop), expected output path, and required sections. The coordinator handles prompt construction, approval gate, SDK invocation, acceptance check, correction loop, and logging.
+Worker chain, output path, and sections are pre-specified — the coordinator skips those prompts. Interactive HITL checks that remain: prompt approval gate, gap acknowledgment, correction retry. Never pipe stdin.
 
 **Manual fallback** (coordinator unavailable): open a new Claude Code session in the worker's directory and paste a self-contained routing prompt directly.
 
@@ -26,6 +32,7 @@ The coordinator auto-injects: worker identity, checklist invocation, self-critiq
 - **Task description**: self-contained context, relevant file paths, constraints the worker must respect.
 - **Fetch budget**: *"Suggested fetch budget: N sources."* The worker treats this as a hard cap.
 - **Expected output**: specify file path, format, and required section names (entered separately as coordinator inputs).
+- **Approved URLs**: if the task requires non-registered URLs, pass them via `--approved-urls` as a JSON string — `'{"libraries": {"name": "url"}, "clis": {"name": "url"}, "other": {"name": "url"}}'` (any key may be omitted). The coordinator pre-registers them before invoking the worker.
 
 ### Acceptance Check
 The coordinator runs this automatically after each worker invocation: file existence, required section scan, and self-critique present. It surfaces gaps and runs one correction retry before escalating. Manual override: read the deliverable and verify against the spec if coordinator output needs human judgment.
@@ -39,19 +46,20 @@ Before taking ANY action on a new task, run through this checklist in order.
    - **Code review with architecture concerns**: Developer for correctness; Architect as second hop only if warranted.
    - **Bug fix** → Developer. Routing prompt must follow `workers/developer/BUG_FIX_PROTOCOL.md` — include reproduce steps, expected vs. actual, and blast radius.
    - **Documentation** → classify type first using `workers/DOCUMENTATION_PROTOCOL.md`, then route to Developer (technical) or Content (written deliverable).
-2. **Active rules check**:
+2. **Mode selection**: See `workers/MODE_SELECTION_PROTOCOL.md`. State recommended mode (coordinator or manual) and reason before routing.
+3. **Active rules check**:
    - **Infrastructure**: Use `uv`. Store tools in `./servers/`. Use `fastmcp` (v3) with `FastMCP`.
    - **Worker/Tool-Building**: Extend before creating. Get explicit approval before editing `server.py` or running `claude mcp add`. Worker drafts must satisfy all items in `workers/WORKER_STANDARDS.md`.
    - **Security**: Confirm before any delete, format, or system-level command.
    - **Verification**: Dry Run before registering any tool. Log all changes: server history in `logs/[server].md`, worker gap fixes in `logs/worker_updates.md`, new entries in `TOOL_LOG.md` index.
-3. **Server freshness check**: Automated by weekly cron (`scripts/check_server_freshness.py`, Mondays 9am). Check `SERVER_FRESHNESS_ALERTS.md` — if the latest entry is dated within the past 7 days and marked **STALE**, run the **Server Freshness Protocol** before proceeding. Otherwise skip.
-4. **Markdown length check**: Run `scripts/check_markdown_length.py` to refresh. Check `MARKDOWN_LENGTH_ALERTS.md` — if any rule markdown is flagged **OVER_LIMIT**, trim it before proceeding.
-5. **State your plan**: Name your approach and which rules apply. If routing, name the worker and why.
+4. **Server freshness check**: Automated by weekly cron (`scripts/check_server_freshness.py`, Mondays 9am). Check `SERVER_FRESHNESS_ALERTS.md` — if the latest entry is dated within the past 7 days and marked **STALE**, run the **Server Freshness Protocol** before proceeding. Otherwise skip.
+5. **Markdown length check**: Run `scripts/check_markdown_length.py` to refresh. Check `MARKDOWN_LENGTH_ALERTS.md` — if any rule markdown is flagged **OVER_LIMIT**, trim it before proceeding.
+6. **State your plan**: Name your approach and which rules apply. If routing, name the worker and why.
 
 If you skip this checklist, you are operating without rules. There is no exception.
 
 ## Multi-Hop Task Protocol
-The coordinator handles multi-hop chains automatically when you specify a comma-separated worker chain (e.g. `architect,developer`). The Meta-Orchestrator's role: identify the worker sequence and describe in the task brief what each hop must produce for the next. The coordinator sequences invocations, passes hop context forward, and runs per-hop acceptance checks.
+The coordinator handles multi-hop chains automatically when you specify a comma-separated worker chain (e.g. `architect,developer`). The Meta-Orchestrator's role: identify the worker sequence and describe in the task brief what each hop must produce for the next. For each hop after the first, explicitly instruct it to read the prior hop's output — the path is available in hop context but workers will not read it unless told to. The coordinator sequences invocations, passes hop context forward, and runs per-hop acceptance checks.
 
 ## Infrastructure Rules
 - Use `uv` for all Python environments (no bare `pip install`, no `venv` manually).
@@ -59,7 +67,9 @@ The coordinator handles multi-hop chains automatically when you specify a comma-
 - Use the standalone `fastmcp` package (v3) with `FastMCP`.
 
 ## Output Conventions
-- Deliverable markdown files (presentations, briefs, reports, architecture docs) → `./output/` at project root. Code files stay in the worker's directory. Include this in routing prompts.
+- `output/intermediate_outputs/` — coordinator hop files, planning docs, implementation reports. Gitignored; not committed.
+- `output/final_outputs/` — permanent local deliverables for the user (presentations, briefs, architecture docs). Gitignored; not committed.
+- Code files stay in the worker's directory. Specify the correct subdir in routing prompts using worker-relative paths (e.g. `../../output/final_outputs/report.md`).
 
 ## Worker-Building Loop
 See `workers/WORKER_BUILDING_LOOP.md`. Read and run through it in order when creating or extending a worker.
