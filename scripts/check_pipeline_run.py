@@ -18,6 +18,11 @@ ARTIFACTS = [
     "validation_report.md",
     "publish_report.md",
 ]
+PHASE_OF = {
+    "task.md": 1, "research.md": 1, "plan.md": 2, "holdback/test_spec.md": 2,
+    "implementation_notes.md": 3, "validation_report.md": 4, "publish_report.md": 5,
+}
+PHASE_NAMES = {1: "research", 2: "planning", 3: "coding", 4: "validation", 5: "publicizing"}
 VERDICT_RE = re.compile(r"^#*\s*Human Verdict:\s*APPROVED\b", re.MULTILINE)
 
 
@@ -44,6 +49,20 @@ def main():
         if not approved:
             print("GATE_VIOLATION publish_report.md exists without 'Human Verdict: APPROVED'")
             violations.append("human gate")
+
+    # Backfill rule (PIPELINE.md): resume at the earliest gapped phase, not your current step
+    missing = [a for a in ARTIFACTS if not present[a]]
+    resume = PHASE_OF[missing[0]] if missing else None
+    plan = run_dir / "plan.md"
+    # Bracketed marker per the phase 2 template — bare word in prose is not a gap
+    if present["plan.md"] and "[PROVISIONAL" in plan.read_text():
+        print("PROVISIONAL   plan.md has unreconciled items — a phase 2 gap")
+        resume = min(resume or 2, 2)
+    if resume:
+        print(f"RESUME AT: phase {resume} — {PHASE_NAMES[resume]}"
+              + (f" (earliest gap: {missing[0]})" if missing and PHASE_OF[missing[0]] <= resume else ""))
+    else:
+        print("RUN COMPLETE: all artifacts present")
 
     sys.exit(1 if violations else 0)
 

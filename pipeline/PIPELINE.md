@@ -52,6 +52,14 @@ All artifacts for one task live in `pipeline/runs/<task_slug>/` (gitignored, loc
   record your verdict and any refinement requests in that file.
 - **Taste**: all phases read `TASTE.md` at the repo root and treat it as standing user
   preference. Edit it any time; it outranks phase defaults, never security rules.
+- **Mid-task entry (backfill rule)**: joining the pipeline partway through — e.g. code
+  already half-written with no plan — does not start at your current step. First run
+  `python scripts/check_pipeline_run.py pipeline/runs/<task_slug>`; it names the earliest
+  gapped phase (`RESUME AT`). Execute that phase first and proceed forward in order until
+  you reach where you were. A gap is a missing artifact, an unresolved `PROVISIONAL` item
+  in `plan.md`, or an Open Question that blocks the step you want to run. Backfill phases
+  must record already-done work honestly (e.g. plan steps marked "already implemented —
+  verify in phase 4") rather than pretending the work hasn't happened.
 
 ## Running inside this repo's agent harness (optional)
 
