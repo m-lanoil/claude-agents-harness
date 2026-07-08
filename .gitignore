@@ -230,6 +230,7 @@ MARKDOWN_LENGTH_ALERTS.md
 !.claude/*.template.json
 workers/content/memory/*
 !workers/content/memory/.gitkeep
+pipeline/runs/
 servers/docs_fetcher/libraries.json
 servers/docs_fetcher/clis.json
 servers/docs_fetcher/other_sources.json
