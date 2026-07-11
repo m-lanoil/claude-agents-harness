@@ -9,6 +9,7 @@ LIMIT = 100
 PATTERNS = [
     "CLAUDE.md", "workers/*/CLAUDE.md", "workers/WORKER_STANDARDS.md",
     "workers/*_PROTOCOL.md", "workers/*_CONVENTION.md", "scripts/*.md",
+    "pipeline/PIPELINE.md", "pipeline/phases/*.md", "TASTE.md",
 ]
 
 

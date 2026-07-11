@@ -58,6 +58,9 @@ Before taking ANY action on a new task, run through this checklist in order.
 
 If you skip this checklist, you are operating without rules. There is no exception.
 
+## Pipeline Protocol
+For end-to-end feature work (research → plan → code → validate → publish), use `pipeline/PIPELINE.md` instead of ad-hoc routing. Phases are standalone files in `pipeline/phases/`; artifacts live in `pipeline/runs/<task_slug>/`. Phases may be routed through the coordinator using the worker mapping in PIPELINE.md, or run directly in any CLI. `TASTE.md` at the repo root carries standing user preferences into every phase.
+
 ## Multi-Hop Task Protocol
 The coordinator handles multi-hop chains automatically when you specify a comma-separated worker chain (e.g. `architect,developer`). The Meta-Orchestrator's role: identify the worker sequence and describe in the task brief what each hop must produce for the next. For each hop after the first, explicitly instruct it to read the prior hop's output — the path is available in hop context but workers will not read it unless told to. The coordinator sequences invocations, passes hop context forward, and runs per-hop acceptance checks.
 
