@@ -24,6 +24,12 @@ look at tests for the planned acceptance criteria — validation owns those.
    validation tests).
 2. Follow reference docs from `research.md` for any external API usage; when the docs and
    your memory disagree, the docs win.
+   **Research loop-back**: if you hit a knowledge gap mid-implementation (undocumented
+   API behavior, missing version detail, unfamiliar error), pause coding and run a scoped
+   phase-1 pass for that question only — append findings to `research.md` under a
+   `## Loop-back: <question>` heading, then resume the current step. Log the loop-back in
+   `implementation_notes.md`. Guessing instead of looping back is the failure mode this
+   exists to prevent.
 3. If reality forces a deviation from the plan (API changed, step infeasible, better
    trivial alternative), log it in `implementation_notes.md` with the reason. Deviations
    that change architecture require stopping and asking the user, not improvising.
