@@ -23,11 +23,15 @@ route back to phase 3 (or 2) — not here.
 3. **Portability rule**: write doc sections self-contained — absolute URLs, no relative
    links or repo-internal references inside sections the user may paste elsewhere
    (blogs, wikis, package registries). Fenced code blocks must run as pasted.
-4. **Stage the PR** (draft only — do not push or open anything):
+4. **Challenges & next steps**: distill from `implementation_notes.md` (deviations,
+   loop-backs, limitations) and `validation_report.md` (gaps, findings) what was genuinely
+   hard, what was deferred, and what a collaborator should pick up next. This section is
+   for humans joining the work — write it so someone outside this run can act on it.
+5. **Stage the PR** (draft only — do not push or open anything):
    - Commit the work on the current branch with a conventional message.
    - Draft PR title and body into `publish_report.md`: summary, motivation, test
      evidence quoted from the validation report, breaking changes, docs touched.
-5. Present the user the exact push/PR commands to run themselves, or run them only on
+6. Present the user the exact push/PR commands to run themselves, or run them only on
    their explicit instruction in this session.
 
 ## Output — `pipeline/runs/<task_slug>/publish_report.md`
@@ -40,9 +44,13 @@ route back to phase 3 (or 2) — not here.
 - <path> — <why it needed to exist>
 ## Copy-Paste Blocks
 - <where in the docs the portable sections live>
+## Challenges
+- <what was genuinely hard or surprising, with enough context for an outsider>
+## Next Steps
+- <deferred work, open gaps, follow-ups a collaborator can pick up — one line each>
 ## PR Draft
 - Title: ...
-- Body: (summary / motivation / test evidence / breaking changes)
+- Body: (summary / motivation / test evidence / breaking changes / challenges & next steps)
 ## To Publish (user runs)
 - <exact git push / gh pr create commands>
 ```
