@@ -221,6 +221,12 @@ logs/*
 !logs/*TEMPLATE*
 output/*
 !output/.gitkeep
+!output/final_outputs/
+!output/intermediate_outputs/
+output/final_outputs/*
+!output/final_outputs/.gitkeep
+output/intermediate_outputs/*
+!output/intermediate_outputs/.gitkeep
 TOOL_LOG.md
 KB_STALENESS_LOG.md
 SERVER_FRESHNESS_ALERTS.md
