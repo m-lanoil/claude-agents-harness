@@ -462,6 +462,27 @@ async def _handle_validator_result(
 # Multi-hop sequencing
 # ---------------------------------------------------------------------------
 
+def _topic_from_output_path(expected_output_path: str) -> str:
+    """Extract the topic subfolder from a `.../final_outputs/<topic>/...` path.
+
+    Per CLAUDE.md -> Output Conventions, --output must include a topic subfolder.
+    Falls back to 'misc' (and warns) for paths that don't follow that convention,
+    so intermediate hop files still land in a folder instead of loose at the top level.
+    """
+    parts = Path(expected_output_path).parts
+    for marker in ("final_outputs", "intermediate_outputs"):
+        if marker in parts:
+            idx = parts.index(marker)
+            if idx + 1 < len(parts) - 1:
+                return parts[idx + 1]
+    print(
+        f"Warning: --output '{expected_output_path}' has no topic subfolder under "
+        f"final_outputs/ — intermediate hop files will land in "
+        f"output/intermediate_outputs/misc/. See CLAUDE.md -> Output Conventions."
+    )
+    return "misc"
+
+
 async def _execute_chain(
     hop_workers: list[str],
     task: str,
@@ -477,15 +498,17 @@ async def _execute_chain(
         print(f"Hop {hop_idx + 1}/{total_hops}: {worker_name}")
         print("─" * 50)
 
-        # For multi-hop: intermediate hops write to a temp path; only the final
-        # hop writes to expected_output_path.
+        # For multi-hop: intermediate hops write to a temp path (topic-sorted, matching
+        # the final hop's topic); only the final hop writes to expected_output_path.
         if hop_idx < total_hops - 1:
-            hop_output = f"../../output/intermediate_outputs/coordinator_hop_{hop_idx + 1}_{worker_name}.md"
+            topic = _topic_from_output_path(expected_output_path)
+            hop_output = f"../../output/intermediate_outputs/{topic}/coordinator_hop_{hop_idx + 1}_{worker_name}.md"
         else:
             hop_output = expected_output_path
         # Resolve to absolute path relative to the worker's cwd so acceptance_check
         # can stat the file without the _REPO_ROOT prepend going two levels too high.
         hop_output = str((WORKER_DIRS[worker_name] / hop_output).resolve())
+        Path(hop_output).parent.mkdir(parents=True, exist_ok=True)
 
         routing = RoutingPrompt(
             worker=worker_name,

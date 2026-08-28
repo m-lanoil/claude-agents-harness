@@ -20,7 +20,7 @@ Workers are invoked via the coordinator. The Meta-Orchestrator's role before eac
 3. Give the user this command to run in their terminal:
 
 ```bash
-uv run --with claude-agent-sdk python -m coordinator "task brief" --workers developer --output ../../output/report.md --sections "Section 1,Section 2"
+uv run --with claude-agent-sdk python -m coordinator "task brief" --workers developer --output ../../output/final_outputs/<topic>/report.md --sections "Section 1,Section 2"
 ```
 
 Worker chain, output path, and sections are pre-specified — the coordinator skips those prompts. Interactive HITL checks that remain: prompt approval gate, gap acknowledgment, correction retry. Never pipe stdin.
@@ -72,6 +72,8 @@ The coordinator handles multi-hop chains automatically when you specify a comma-
 ## Output Conventions
 - `output/intermediate_outputs/` — coordinator hop files, planning docs, implementation reports. Gitignored; not committed.
 - `output/final_outputs/` — permanent local deliverables for the user (presentations, briefs, architecture docs). Gitignored; not committed.
+- **Topic folders are required**: every artifact under `final_outputs/` or `intermediate_outputs/` goes in a topic subfolder (e.g. `<client-name>/`, `<project-name>/`) — never loose at the top level. Before creating a new topic folder, check for an existing one that fits (`ls output/final_outputs/`); reuse it instead of fragmenting by task or file name. Topic = client/project/subject, not task type — infra/tooling reports about the coordinator itself go in `intermediate_outputs/coordinator-dev/`.
+- Routing prompts must include the topic subfolder in `--output`: `../../output/final_outputs/<topic>/report.md`. If the topic is unclear, ask the user before routing.
 - Code files stay in the worker's directory. Specify the correct subdir in routing prompts using worker-relative paths (e.g. `../../output/final_outputs/report.md`).
 
 ## Worker-Building Loop

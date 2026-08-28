@@ -1,7 +1,7 @@
 # coordinator/
 
 Automated orchestration loop for the `claude_agents` multi-agent harness.
-Implements the architecture described in `output/coordinator_loop_architecture.md`.
+Implements the architecture described in `output/intermediate_outputs/coordinator-dev/coordinator_loop_architecture.md`.
 
 ## How to run
 
@@ -11,13 +11,13 @@ From the repo root:
 # Pre-specify all routing values (Meta-Orchestrator form — skips three interactive prompts):
 uv run --with claude-agent-sdk python -m coordinator "Your task description here" \
   --workers developer \
-  --output ../../output/final_outputs/report.md \
+  --output ../../output/final_outputs/<topic>/report.md \
   --sections "Section 1,Section 2"
 
 # Multi-hop chain example:
 uv run --with claude-agent-sdk python -m coordinator "Your task description here" \
   --workers architect,developer \
-  --output ../../output/final_outputs/report.md \
+  --output ../../output/final_outputs/<topic>/report.md \
   --sections "Summary,Tradeoffs,Implementation Plan"
 
 # Interactive fallback — omit any or all of --workers/--output/--sections to be prompted:
@@ -60,7 +60,7 @@ were added.
 ```bash
 uv run --with claude-agent-sdk python -m coordinator "Fetch and summarise the httpx changelog" \
   --workers developer \
-  --output ../../output/final_outputs/httpx_summary.md \
+  --output ../../output/final_outputs/<topic>/httpx_summary.md \
   --sections "Summary,Key Changes" \
   --approved-urls '{"libraries": {"httpx-changelog": "https://www.python-httpx.org/changelog/"}}'
 ```
@@ -77,15 +77,23 @@ Use `../../output/...` notation so the path resolves correctly from the worker c
 
 | Path type | Location | Example |
 |---|---|---|
-| Final deliverable | `output/final_outputs/` | `../../output/final_outputs/report.md` |
+| Final deliverable | `output/final_outputs/<topic>/` | `../../output/final_outputs/<topic>/report.md` |
 | Intermediate hop files (auto-managed) | `output/intermediate_outputs/` | *(set by coordinator)* |
+
+Final deliverables must include a **topic subfolder** (e.g. `<client-name>/`, `<project-name>/`)
+— reuse an existing one under `output/final_outputs/` where it fits rather than writing loose
+to the top level. See `CLAUDE.md` → Output Conventions.
 
 Intermediate hop files are written automatically by the coordinator for each non-final hop
 in a multi-hop chain. They are named `coordinator_hop_{N}_{worker}.md` and placed in
-`output/intermediate_outputs/`. These are gitignored and not committed.
+`output/intermediate_outputs/<topic>/`, where `<topic>` is parsed from the final hop's
+`--output` path (`orchestrator.py::_topic_from_output_path`). If `--output` omits a topic
+subfolder, hop files fall back to `output/intermediate_outputs/misc/` and a warning is
+printed — always pass a topic-qualified `--output` to avoid this. These are gitignored
+and not committed.
 
-Final deliverables should be directed to `output/final_outputs/` via `--output`. These are
-also gitignored (local-only) but are the permanent output for the user.
+Final deliverables should be directed to `output/final_outputs/<topic>/` via `--output`. These
+are also gitignored (local-only) but are the permanent output for the user.
 
 **Interactive HITL checks that always fire regardless of pre-specified args:**
 1. **Prompt approval gate** — shown before each worker invocation; you can approve, edit, or abort.
