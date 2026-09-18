@@ -241,4 +241,6 @@ servers/docs_fetcher/libraries.json
 servers/docs_fetcher/clis.json
 servers/docs_fetcher/other_sources.json
 logs/active_task_log.md
+workers/*/routing_prompt_*.md
+workers/*/human-retrieved-sources/
 

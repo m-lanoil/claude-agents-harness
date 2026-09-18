@@ -25,7 +25,7 @@ uv run --with claude-agent-sdk python -m coordinator "task brief" --workers deve
 
 Worker chain, output path, and sections are pre-specified — the coordinator skips those prompts. Interactive HITL checks that remain: prompt approval gate, gap acknowledgment, correction retry. Never pipe stdin.
 
-**Manual fallback** (coordinator unavailable): open a new Claude Code session in the worker's directory and paste a self-contained routing prompt directly.
+**Manual fallback** (coordinator unavailable, or manual mode chosen per `MODE_SELECTION_PROTOCOL.md`): write the self-contained routing prompt to an ephemeral `workers/<worker>/routing_prompt_<task_slug>.md` file (gitignored — delete once the worker session has consumed it) — it must live inside the target worker's own directory, not `workers/` root, since worker sessions are sandboxed to their own directory and cannot read parent paths. Use paths relative to that directory. Tell the user to open a new Claude Code session in the worker's directory and read that file.
 
 ### Routing Prompt Quality Standard
 The coordinator auto-injects: worker identity, checklist invocation, self-critique instruction, and JSON return block. The Meta-Orchestrator is responsible for the task brief content:

@@ -68,8 +68,9 @@ def _clean_html(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
     for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
         tag.decompose()
+    articles = soup.find_all("article")
     main = (
-        soup.find("article")
+        (articles[0] if len(articles) == 1 else None)
         or soup.find("main")
         or soup.find(class_="document")
         or soup.find(class_="content")

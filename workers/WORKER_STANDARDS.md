@@ -13,7 +13,7 @@ Every worker `CLAUDE.md` must include all six items, regardless of mandate.
 | 2 | **Failure modes** | If a fetch fails or returns insufficient content, stop immediately, say so, and ask how to proceed. No silent fallback to training data or unverified content. |
 | 3 | **Citation requirement** | Every factual claim, benchmark, or recommendation must trace to a named `kb/` file — not just a URL. "Cite sources inline" alone is not sufficient. |
 | 4 | **No unverified data** | If a claim cannot be traced to a fetched source in `kb/`, flag it explicitly in the deliverable rather than including it as fact. |
-| 5 | **Sandboxing** | File writes explicitly scoped based on worker type. **Deliverable workers** (Architect, Content): `./kb/` and `../../output/` only. **Code workers** (Developer): all work (scripts, data, outputs, requirements) lives in `./sandbox/<project_name>/`; final deliverables (PDFs, structured outputs for the user) to `../../output/`. Never put files directly in the sandbox root. Use `lowercase_snake_case` for all folder and file names. |
+| 5 | **Sandboxing** | File writes explicitly scoped based on worker type. **Deliverable workers** (Architect, Content, Researcher): `./kb/`, `./human-retrieved-sources/`, and `../../output/` only. **Code workers** (Developer): all work (scripts, data, outputs, requirements) lives in `./sandbox/<project_name>/`; final deliverables (PDFs, structured outputs for the user) to `../../output/`; human-retrieved sources also permitted at `./human-retrieved-sources/`. Never put files directly in the sandbox root. Use `lowercase_snake_case` for all folder and file names. |
 | 6 | **Human-in-the-loop** | Confirm before any action that is hard to reverse. URL approval happens pre-task via the task brief — do not pause mid-task to request it. |
 
 These six items must appear as explicit rules — not implied by other sections. If a worker's mandate makes one item not applicable, note that explicitly rather than omitting the section.
@@ -46,6 +46,17 @@ source: [url]
 fetched: YYYY-MM-DD
 ---
 ```
+
+### Human-Retrieved Source Protocol
+When a registered/approved URL fails to fetch mid-task (dead link, paywall, bot-block) and the
+user supplies the source directly (e.g. a PDF) as a substitute — manual mode only, since there's
+no human present to hand off to mid-coordinator-run: save it to `./human-retrieved-sources/`
+(gitignored, not registered in the Source Registry), named `lowercase_snake_case` matching the
+source's registry key where one exists (e.g. `uptime_institute_2026_survey.pdf`). Write the kb
+file exactly as normal, citing the local file path in the frontmatter `note:` field instead of a
+fetch URL. This is not a training-data fallback — the Grounding Protocol's "no unverified data"
+rule still applies; the substitution itself must be disclosed, not silently absorbed as if it were
+a normal fetch.
 
 ### Token Budget Protocol
 1. **Pre-task declaration** — fetch budget and any approved URLs for non-registered sources are specified in the task brief. Do not re-declare mid-task — proceed within the budget given.

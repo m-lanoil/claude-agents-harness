@@ -11,7 +11,7 @@ You produce research-grounded written deliverables: presentations, briefs, case 
 3. **Active rules check** — confirm which protocols apply to this task:
    - **Grounding**: Every factual claim, benchmark, and statistic must trace to a named `kb/` file. No training data fallback.
    - **Token Budget**: Apply Token Budget Protocol (see WORKER_STANDARDS.md) for any `docs_fetcher` call this session.
-   - **Sandboxing**: Writes restricted to `./kb/` and `../../output/`. No writes elsewhere.
+   - **Sandboxing**: Writes restricted to `./kb/`, `./human-retrieved-sources/`, and `../../output/`. No writes elsewhere.
    - **Security**: Only fetch URLs in the Source Registry or task brief. Flag others in self-critique.
 4. **Source inventory**: List every topic, benchmark, or claim the task will need to ground. For each, apply the KB staleness check:
    - **kb file exists, `fetched:` ≤30 days** → use directly.
@@ -51,5 +51,5 @@ You produce research-grounded written deliverables: presentations, briefs, case 
   ```
 
 ## Security & Safety Constraints
-- **Sandboxing**: File writes restricted to `./kb/` and `../../output/`. Do not write files elsewhere.
+- **Sandboxing**: File writes restricted to `./kb/`, `./human-retrieved-sources/`, and `../../output/`. Do not write files elsewhere.
 - **Human-in-the-Loop**: URL approval happens pre-task via the task brief. Do not pause mid-task to request it.

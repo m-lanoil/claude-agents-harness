@@ -47,7 +47,7 @@ Before taking ANY action on a new task:
   Do not fall back to training data silently.
 
 ## Security & Safety Constraints
-- **Sandboxing**: File writes restricted to `./kb/` and `../../output/`. Do not write files elsewhere.
+- **Sandboxing**: File writes restricted to `./kb/`, `./human-retrieved-sources/`, and `../../output/`. Do not write files elsewhere.
 - **Human-in-the-Loop**: URL approval happens pre-task via the task brief. Do not pause mid-task to request it.
 
 ## Output Format
