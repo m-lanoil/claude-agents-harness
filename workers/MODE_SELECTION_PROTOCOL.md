@@ -5,6 +5,13 @@ Triggered when: a new task arrives, after worker classification.
 
 State the recommended mode and reason before routing. The user can override.
 
+## Standing override (active since 2026-09-28)
+Coordinator mode is disabled by standing user instruction. Always recommend **Manual mode**,
+regardless of which Coordinator/Hybrid criteria below would otherwise apply — do not use them to
+select Coordinator. The `coordinator/` program itself is untouched by this override; it is kept in
+the repo, just not invoked by the routing workflow. Remove this section to re-enable Coordinator
+mode selection.
+
 ## Coordinator mode — use when all of these hold
 - Spec is complete and self-contained: worker needs no mid-task clarification
 - Output format is defined: file path and required sections are known

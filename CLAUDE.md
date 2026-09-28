@@ -25,7 +25,9 @@ uv run --with claude-agent-sdk python -m coordinator "task brief" --workers deve
 
 Worker chain, output path, and sections are pre-specified — the coordinator skips those prompts. Interactive HITL checks that remain: prompt approval gate, gap acknowledgment, correction retry. Never pipe stdin.
 
-**Manual fallback** (coordinator unavailable, or manual mode chosen per `MODE_SELECTION_PROTOCOL.md`): write the self-contained routing prompt to an ephemeral `workers/<worker>/routing_prompt_<task_slug>.md` file (gitignored — delete once the worker session has consumed it) — it must live inside the target worker's own directory, not `workers/` root, since worker sessions are sandboxed to their own directory and cannot read parent paths. Use paths relative to that directory. Tell the user to open a new Claude Code session in the worker's directory and read that file.
+**Manual fallback** (coordinator unavailable, or manual mode chosen per `MODE_SELECTION_PROTOCOL.md`): write the self-contained routing prompt to an ephemeral `workers/<worker>/routing_prompt_<task_slug>.md` file (gitignored) — it must live inside the target worker's own directory, not `workers/` root, since worker sessions are sandboxed to their own directory and cannot read parent paths. Use paths relative to that directory. Tell the user to open a new Claude Code session in the worker's directory and read that file.
+
+**Manual-mode handoff record**: Coordinator mode logs each hop to `intermediate_outputs/` automatically; manual mode has no equivalent unless you create one. Before deleting a consumed routing prompt, copy it into `output/intermediate_outputs/<topic>/hop_N_<worker>_<short-name>.md` (numbered in hop order) with a short **Outcome** note (accepted / correction needed / what changed) appended below the prompt text. Only delete the `workers/<worker>/routing_prompt_*.md` original after that copy exists.
 
 ### Routing Prompt Quality Standard
 The coordinator auto-injects: worker identity, checklist invocation, self-critique instruction, and JSON return block. The Meta-Orchestrator is responsible for the task brief content:
