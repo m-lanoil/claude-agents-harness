@@ -1,11 +1,26 @@
 import json
 import re
+import shutil
+import subprocess
 import httpx
 from pathlib import Path
 from bs4 import BeautifulSoup
 from fastmcp import FastMCP
 
 mcp = FastMCP("docs_fetcher")
+
+# Sites commonly block httpx's default User-Agent (403 or a redirect to google.com). Identify honestly instead.
+REQUEST_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; docs_fetcher/1.0; research-tool)",
+    "Accept": "text/html,application/pdf;q=0.9,*/*;q=0.8",
+}
+# A content container smaller than this (and under a quarter of the page text) is treated as a menu/widget, not the article.
+MIN_CONTENT_CHARS = 1500
+MANUAL_HINT = "Save the page/PDF into the worker's human-retrieved-sources/ folder and read it from there."
+
+
+class _PlainText(str):
+    """Text already extracted from a non-HTML response (e.g. a PDF); _clean_html passes it through."""
 
 LIBRARIES_PATH = Path(__file__).parent / "libraries.json"
 CLIS_PATH = Path(__file__).parent / "clis.json"
@@ -49,36 +64,73 @@ def _save_other_sources(sources: dict) -> None:
     OTHER_SOURCES_PATH.write_text(json.dumps(sources, indent=2))
 
 
+def _pdf_to_text(data: bytes) -> "_PlainText | dict":
+    """Extract text from PDF bytes with pdftotext (reads stdin, writes stdout). Returns text or error dict."""
+    if shutil.which("pdftotext") is None:
+        return {"error": f"PDF returned but pdftotext is not installed (install poppler). {MANUAL_HINT}"}
+    try:
+        proc = subprocess.run(["pdftotext", "-nopgbrk", "-", "-"], input=data, capture_output=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        return {"error": f"pdftotext timed out after 60s. {MANUAL_HINT}"}
+    text = proc.stdout.decode("utf-8", errors="replace")
+    if proc.returncode != 0 or not text.strip():
+        return {"error": f"pdftotext could not read this PDF (exit {proc.returncode}; scanned, encrypted or malformed?). {MANUAL_HINT}"}
+    return _PlainText(text)
+
+
 def _fetch_html(url: str) -> str | dict:
-    """Fetch raw HTML for a URL, using the session cache. Returns HTML string or error dict."""
+    """Fetch a URL, using the session cache. Returns HTML (or PDF-extracted plain text) as a string, or an error dict."""
     if url in _cache:
         return _cache[url]
     try:
-        response = httpx.get(url, follow_redirects=True, timeout=15)
+        response = httpx.get(url, headers=REQUEST_HEADERS, follow_redirects=True, timeout=30)
         response.raise_for_status()
     except httpx.HTTPStatusError as e:
-        return {"error": f"HTTP {e.response.status_code} fetching {url}"}
+        code = e.response.status_code
+        msg = f"HTTP {code} fetching {url}"
+        if code in (401, 403):
+            msg += f" - the site is blocking automated requests or requires access. {MANUAL_HINT}"
+        return {"error": msg}
     except httpx.RequestError as e:
         return {"error": f"Request failed: {e}"}
-    _cache[url] = response.text
-    return response.text
+    content_type = response.headers.get("content-type", "").lower()
+    if "application/pdf" in content_type or response.content[:5] == b"%PDF-":
+        result = _pdf_to_text(response.content)
+        if isinstance(result, dict):
+            return result
+    else:
+        result = response.text
+    _cache[url] = result
+    return result
+
+
+def _element_text(element) -> str:
+    text = element.get_text(separator="\n")
+    return "\n".join(line.strip() for line in text.splitlines() if line.strip())
 
 
 def _clean_html(html: str) -> str:
+    if isinstance(html, _PlainText):
+        return "\n".join(line.strip() for line in html.splitlines() if line.strip())
     soup = BeautifulSoup(html, "html.parser")
     for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
         tag.decompose()
     articles = soup.find_all("article")
-    main = (
-        (articles[0] if len(articles) == 1 else None)
-        or soup.find("main")
-        or soup.find(class_="document")
-        or soup.find(class_="content")
-        or soup.body
-    )
-    text = (main or soup).get_text(separator="\n")
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    return "\n".join(lines)
+    body_text = _element_text(soup.body or soup)
+    candidates = []
+    if len(articles) == 1:
+        candidates.append(articles[0])
+    candidates += [soup.find("main"), soup.find(class_="document"), soup.find(class_="content")]
+    if len(articles) > 1:
+        # Several <article> tags = listing/related-post widgets plus the real article; the largest is the real one.
+        candidates.append(max(articles, key=lambda a: len(a.get_text())))
+    for element in candidates:
+        if element is None:
+            continue
+        text = _element_text(element)
+        if len(text) >= MIN_CONTENT_CHARS or len(text) >= len(body_text) / 4:
+            return text
+    return body_text
 
 
 @mcp.tool()

@@ -32,7 +32,7 @@ Worker chain, output path, and sections are pre-specified — the coordinator sk
 ### Routing Prompt Quality Standard
 The coordinator auto-injects: worker identity, checklist invocation, self-critique instruction, and JSON return block. The Meta-Orchestrator is responsible for the task brief content:
 - **Task description**: self-contained context, relevant file paths, constraints the worker must respect.
-- **Fetch budget**: *"Suggested fetch budget: N sources."* The worker treats this as a hard cap.
+- **Fetch budget**: *"Suggested fetch budget: N sources."* The worker treats this as a hard cap. The budget counts distinct URLs; paginating an approved URL with `char_offset` does not count. Never word a cap as "one fetch per URL".
 - **Expected output**: specify file path, format, and required section names (entered separately as coordinator inputs).
 - **Approved URLs**: if the task requires non-registered URLs, pass them via `--approved-urls` as a JSON string — `'{"libraries": {"name": "url"}, "clis": {"name": "url"}, "other": {"name": "url"}}'` (any key may be omitted). The coordinator pre-registers them before invoking the worker.
 
