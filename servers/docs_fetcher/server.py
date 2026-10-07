@@ -133,7 +133,7 @@ def _clean_html(html: str) -> str:
     return body_text
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def list_libraries() -> dict:
     """List all registered documentation libraries."""
     return {"libraries": _load_libraries()}
@@ -160,7 +160,7 @@ def add_library(name: str, url: str) -> dict:
     return {action: True, "name": name, "url": url}
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def list_clis() -> dict:
     """List all registered CLI tool documentation sources."""
     return {"clis": _load_clis()}
@@ -185,7 +185,7 @@ def add_cli(name: str, url: str) -> dict:
     return {action: True, "name": name, "url": url}
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def list_other_sources() -> dict:
     """List all registered other reference sources (e.g. Apple support pages)."""
     return {"other_sources": _load_other_sources()}
@@ -210,7 +210,7 @@ def add_other_source(name: str, url: str) -> dict:
     return {action: True, "name": name, "url": url}
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def fetch_docs(library: str, topic: str = "", char_offset: int = 0) -> dict:
     """
     Fetch documentation for a given library and optional topic/path.
@@ -253,7 +253,7 @@ def fetch_docs(library: str, topic: str = "", char_offset: int = 0) -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def fetch_url(url: str, char_offset: int = 0) -> dict:
     """
     Fetch and clean any documentation URL directly.
@@ -285,7 +285,7 @@ def fetch_url(url: str, char_offset: int = 0) -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def search_docs(library: str, query: str, topic: str = "") -> dict:
     """
     Search for a query term within a library's documentation page and return matching snippets.
@@ -345,7 +345,7 @@ def search_docs(library: str, query: str, topic: str = "") -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def crawl_docs(url: str, max_pages: int = 10, same_prefix: bool = True, keywords: list[str] = []) -> dict:
     """
     Crawl a documentation site starting from a base URL, following links up to max_pages.
@@ -415,7 +415,7 @@ def crawl_docs(url: str, max_pages: int = 10, same_prefix: bool = True, keywords
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def get_fetch_stats() -> dict:
     """Return statistics about URLs fetched in this session."""
     urls_fetched = list(_cache.keys())

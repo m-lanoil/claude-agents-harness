@@ -4,7 +4,7 @@ from fastmcp import FastMCP
 mcp = FastMCP("system_monitor")
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def get_cpu_stats() -> dict:
     """
     Return current CPU utilization and hardware info.
@@ -24,7 +24,7 @@ def get_cpu_stats() -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def get_memory_stats() -> dict:
     """
     Return current RAM and swap memory usage.
@@ -49,7 +49,7 @@ def get_memory_stats() -> dict:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def get_disk_stats() -> dict:
     """
     Return disk usage for all physical partitions.
@@ -74,7 +74,7 @@ def get_disk_stats() -> dict:
     return {"partitions": partitions}
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def scan_large_files(root_dir: str = "/Users", top_n: int = 20, min_size_mb: float = 50.0) -> dict:
     """
     Scan a directory recursively and return the top N largest files.
@@ -116,7 +116,7 @@ def scan_large_files(root_dir: str = "/Users", top_n: int = 20, min_size_mb: flo
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations={"readOnlyHint": True})
 def get_directory_size(path: str) -> dict:
     """
     Run du -sk on a directory and return its disk usage.
