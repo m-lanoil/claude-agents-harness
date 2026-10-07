@@ -11,7 +11,7 @@
 | Developer worker | `workers/developer/` | Grounded code, sandbox scripts, ML, system checks, technical docs | Has `CLAUDE.md` plus bug-fix protocol and ML output convention |
 | Architect worker | `workers/architect/CLAUDE.md` | Technology and architecture proposals, no code | `CLAUDE.md` only |
 | Content worker | `workers/content/CLAUDE.md` | Research-grounded written deliverables, review | `CLAUDE.md` only; `.gitignore` reserves `workers/content/memory/` |
-| Researcher worker | `workers/researcher/CLAUDE.md` | Pre-task planning docs | `CLAUDE.md` only; not listed in `TOOL_LOG_TEMPLATE.md` Workers table |
+| Researcher worker | `workers/researcher/CLAUDE.md` | Pre-task planning docs | `CLAUDE.md` only |
 | docs_fetcher server | `servers/docs_fetcher/` | 11 MCP tools: source registries, fetch, search, crawl, stats | 436-line `server.py`, `pyproject.toml`, `uv.lock`; fix commits 3d96d6b, 5247a95 (per commit messages); no tracked tests |
 | system_monitor server | `servers/system_monitor/` | 5 read-only MCP tools plus 2 SessionStart hook scripts | 146-line `server.py`, `pyproject.toml`, `uv.lock`; no tracked tests |
 | Coordinator | `coordinator/` | Agent SDK loop: hop sequencing, 3-part acceptance check, Validator, HITL gates | Five modules, README with flags; **disabled by standing override** in `workers/MODE_SELECTION_PROTOCOL.md`; no tracked tests |
@@ -53,8 +53,7 @@
 - Developer does not self-execute scripts unless the brief says so, and writes only under `sandbox/`, `kb/`, `human-retrieved-sources/` and `../../output/` (`workers/developer/CLAUDE.md`).
 - Runtime state is local-only: a fresh clone has no kb, logs, outputs, registries, MCP config or hooks until set up from templates (`.gitignore`).
 - Rule markdown is capped at 100 non-empty lines per file (`TASTE.md`, `scripts/check_markdown_length.py`).
-- `coordinator/README.md` refers to `output/intermediate_outputs/coordinator-dev/coordinator_loop_architecture.md`, which is not tracked.
-- `TOOL_LOG_TEMPLATE.md` lists three workers; `CLAUDE.md` lists four.
+- `coordinator/README.md` refers to `output/intermediate_outputs/coordinator-dev/coordinator_loop_architecture.md`, a local gitignored design doc that a fresh clone does not have (the README now says so).
 
 ## Track-record log
 
