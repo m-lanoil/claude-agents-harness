@@ -58,9 +58,11 @@
 
 ## Track-record log
 
-| Date | Task type | Worker chain | Outcome | What worked / what didn't |
-|---|---|---|---|---|
-| | | | | |
+| Date | Task type | Worker chain | Baseline | Claims fixed | How found | Used as deliverable | Harness issues |
+|---|---|---|---|---|---|---|---|
+| | | | | | | | |
+
+Field values: Task type is research brief, comparison, presentation or case study, code from docs, or other. Baseline is by hand, plain Claude, or not done. Claims fixed is the number of unsupported or training-data claims corrected (0, 1-3, 4+). How found is harness flag, own reading, or source check. Used as deliverable is yes, partly, or no. Harness issues is free text with no client detail.
 
 Entries are added only by the repo owner and must be sanitized of client details. A hop-close step should prompt adding an entry.
 
