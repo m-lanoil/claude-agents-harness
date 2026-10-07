@@ -4,7 +4,7 @@
 
 ## What this is
 
-A Claude Code harness. A root `CLAUDE.md` makes the main session a Meta-Orchestrator that classifies a task, drafts a task brief, and routes it to one of four workers (Developer, Architect, Content, Researcher). The workers are backed by two local MCP servers: `docs_fetcher` (fetch and cache documentation) and `system_monitor` (read-only system stats) (`CLAUDE.md`, `servers/`). The rules are plain markdown. A coordinator program and a 5-phase pipeline sit alongside (`coordinator/README.md`, `pipeline/PIPELINE.md`).
+A Claude Code harness. A root `CLAUDE.md` makes the main session a Meta-Orchestrator that classifies a task, drafts a task brief, and routes it to one of four workers (Developer, Architect, Content, Researcher). The workers are backed by two local MCP servers: `docs_fetcher` (fetch and cache documentation) and `system_monitor` (read-only system stats) (`CLAUDE.md`, `servers/`). The rules are plain markdown. A coordinator program and a 5-phase pipeline sit alongside; both are built but not currently used, and are kept for future buildouts (`coordinator/README.md`, `pipeline/PIPELINE.md`).
 
 The repo is a **template**. Runtime state is gitignored: `TOOL_LOG.md`, `logs/*`, `kb/`, `sandbox/`, `output/*`, `pipeline/runs/`, `.mcp.json`, `.claude/*`, the docs_fetcher source registries and routing prompts (`.gitignore`). Tracked onboarding files are the `*_TEMPLATE.*` and `*.template.json` files.
 
@@ -20,9 +20,9 @@ This section is derived from the rules in the tracked files. It is not a claim a
 
 ### Good fit
 - Work where claims must trace to sources. Developer, Architect, Content and Researcher all require deliverables to trace to fetched kb files, and failed fetches must be reported (`workers/WORKER_STANDARDS.md`, `workers/*/CLAUDE.md`).
-- Work you want gated by a human. Briefs need explicit approval; destructive or system-level commands need confirmation; the pipeline refuses publishing until `Human Verdict: APPROVED` (`CLAUDE.md`, `pipeline/PIPELINE.md`).
-- Multi-step features that benefit from file-based phase handoffs and a held-back test spec (`pipeline/PIPELINE.md`).
-- A reusable rule set you can copy into another repo: the pipeline and `TASTE.md` are described as portable (`pipeline/PIPELINE.md`, Bootstrapping).
+- Work you want gated by a human. Briefs need explicit approval; destructive or system-level commands need confirmation (`CLAUDE.md`). The pipeline is designed to refuse publishing until `Human Verdict: APPROVED`, but it has not been run (`pipeline/PIPELINE.md`).
+- Multi-step features that benefit from file-based phase handoffs and a held-back test spec. This is the pipeline's design; it is unused so far (`pipeline/PIPELINE.md`).
+- A reusable rule set you can copy into another repo: the pipeline and `TASTE.md` are described as portable, though the pipeline has not been exercised (`pipeline/PIPELINE.md`, Bootstrapping).
 
 ### Not a good fit
 - Quick one-off edits. Every task starts with a six-step checklist, and code needs a kb file per import and shell command (<=30 days old) before any code is written (`CLAUDE.md`, `workers/developer/CLAUDE.md`). That is the process-overhead cost.
@@ -57,7 +57,7 @@ flowchart TD
 
 **Manual vs coordinator mode.** Manual: the Meta-Orchestrator writes a self-contained routing prompt to `workers/<worker>/routing_prompt_<slug>.md` (gitignored), and you open a Claude Code session in that worker directory and have it read the file. Before the prompt is deleted, a copy goes to `output/intermediate_outputs/<topic>/hop_N_<worker>_<name>.md` with an outcome note (`CLAUDE.md`). Coordinator: `python -m coordinator` runs the chain through the Claude Agent SDK, with automated acceptance checks (file exists, required sections present, self-critique present) and an internal read-only Validator (`coordinator/README.md`, `coordinator/acceptance.py`, `coordinator/worker_registry.py`). A standing override active since 2026-09-28 disables coordinator selection; manual is the active path (`workers/MODE_SELECTION_PROTOCOL.md`).
 
-**Pipeline.** For end-to-end feature work, `pipeline/PIPELINE.md` defines five phases (research, planning, coding, validation, publicizing) as standalone files in `pipeline/phases/`. Phases communicate only through artifacts in `pipeline/runs/<task_slug>/`. The test spec is written in planning and withheld from coding, and publicizing is blocked until a human verdict of APPROVED. See [`pipeline/PIPELINE.md`](pipeline/PIPELINE.md).
+**Pipeline.** Built but not currently used: no runs exist, and it is kept for future buildouts. For end-to-end feature work, `pipeline/PIPELINE.md` defines five phases (research, planning, coding, validation, publicizing) as standalone files in `pipeline/phases/`. Phases communicate only through artifacts in `pipeline/runs/<task_slug>/`. The test spec is written in planning and withheld from coding, and publicizing is blocked until a human verdict of APPROVED. See [`pipeline/PIPELINE.md`](pipeline/PIPELINE.md).
 
 ## Getting started
 
@@ -78,7 +78,7 @@ Components and what each is (details and maturity signals in [`STATUS.md`](STATU
 - Four workers: `workers/{developer,architect,content,researcher}/CLAUDE.md`.
 - Two MCP servers with lockfiles: `servers/docs_fetcher/`, `servers/system_monitor/` (plus two SessionStart hook scripts).
 - Coordinator program (five modules, disabled by standing override): `coordinator/`.
-- Pipeline (five phase files and a run-contract checker): `pipeline/`, `scripts/check_pipeline_run.py`.
+- Pipeline (five phase files and a run-contract checker; unused, kept for future buildouts): `pipeline/`, `scripts/check_pipeline_run.py`.
 - Maintenance scripts: KB staleness, server freshness, markdown length (<=100 non-empty lines for rule files), pipeline run check: `scripts/`.
 - `TASTE.md`: standing preferences read by pipeline phases.
 

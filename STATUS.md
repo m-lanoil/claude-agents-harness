@@ -48,6 +48,7 @@
 ## Known limits
 
 - Coordinator mode is disabled; every routed task needs a manual session in the worker directory (`workers/MODE_SELECTION_PROTOCOL.md`, `CLAUDE.md`).
+- The five-phase pipeline is built but unused: `pipeline/runs/` has no runs, so its phases, run-contract checker and human-verdict gate have no evidence from real use. Kept for future buildouts (`pipeline/PIPELINE.md`, `scripts/check_pipeline_run.py`).
 - Enforcement is instruction-level. Test isolation in the pipeline is a rule unless the owner adds a `Read(pipeline/runs/**/holdback/**)` deny rule (`pipeline/PIPELINE.md`).
 - Workers can fetch only registered or briefed URLs; a failed fetch stops the task for a human decision (`workers/WORKER_STANDARDS.md`).
 - Developer does not self-execute scripts unless the brief says so, and writes only under `sandbox/`, `kb/`, `human-retrieved-sources/` and `../../output/` (`workers/developer/CLAUDE.md`).
