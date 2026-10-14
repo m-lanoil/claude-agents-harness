@@ -89,6 +89,8 @@ See `EPHEMERAL_TASK_LOG_PROTOCOL.md` at the repo root. Create `logs/active_task_
 - **Topic folders are required**: every artifact under `final_outputs/` or `intermediate_outputs/` goes in a topic subfolder (e.g. `<client-name>/`, `<project-name>/`) — never loose at the top level. Before creating a new topic folder, check for an existing one that fits (`ls output/final_outputs/`); reuse it instead of fragmenting by task or file name. Topic = client/project/subject, not task type — infra/tooling reports about the coordinator itself go in `intermediate_outputs/coordinator-dev/`.
 - Routing prompts must include the topic subfolder in `--output`: `../../output/final_outputs/<topic>/report.md`. If the topic is unclear, ask the user before routing.
 - Code files stay in the worker's directory. Specify the correct subdir in routing prompts using worker-relative paths (e.g. `../../output/final_outputs/report.md`).
+- **Archive**: only when the owner says a topic is closed, after confirmation, move (never delete) its `final_outputs/<topic>` and `intermediate_outputs/<topic>` to `output/archive/<topic>/{final_outputs,intermediate_outputs}/` and add an `ARCHIVED.md` (date, reason, contents, original paths).
+- Do not read or write `output/archive/` unless the owner asks; it is excluded from the topic-reuse check.
 
 ## Worker-Building Loop
 See `workers/WORKER_BUILDING_LOOP.md`. Read and run through it in order when creating or extending a worker.

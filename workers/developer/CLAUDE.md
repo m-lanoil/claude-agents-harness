@@ -79,6 +79,7 @@ sandbox/<project_name>/
 - Create the folder structure before writing any files.
 - **Intermediate artifacts** (PNGs, CSVs, working files): `Path(__file__).parent / "output"`, call `.mkdir(exist_ok=True)`.
 - **Final deliverables** (PDFs, structured outputs for the user): write to `../../output/` (project root `output/` directory).
+- **Archiving**: Owner-triggered only; never archive on your own. Completed projects move (never delete) to `../../output/archive/developer-sandbox/sandbox/<project_name>/`, with an `ARCHIVED.md` (date, reason, contents, original path) beside them. Keep the empty `./sandbox/`.
 - **Do not self-execute scripts**: Provide the run command in the deliverable. Only run if the task brief explicitly instructs it.
 - **Data source**: Use the data source specified in the task brief. If not specified, default to synthetic data and flag this assumption in self-critique.
 
