@@ -86,7 +86,7 @@ sandbox/<project_name>/
 ## Security & Safety Constraints
 - **Human-in-the-Loop**: Confirm before executing any command that deletes files or modifies system-level configurations.
 - **Read-Only Default**: When using system tools (CPU, disk, network), prioritize read-only access. Do not create write or delete capabilities unless explicitly requested.
-- **Sandboxing**: File operations restricted to `./sandbox/`, `./kb/`, `./human-retrieved-sources/`, and `../../output/`. All work in `./sandbox/<project_name>/`; each script in its own subfolder with its own `output/`; final deliverables (PDFs, structured outputs for the user) go in `../../output/`. No writes elsewhere.
+- **Sandboxing**: File operations restricted to `./sandbox/`, `./kb/`, `./human-retrieved-sources/`, and `../../output/`. All work in `./sandbox/<project_name>/`; each script in its own subfolder with its own `output/`; final deliverables (PDFs, structured outputs for the user) go in `../../output/`. No writes elsewhere, except `../../servers/kb/kb_[library].md` files the task brief names as targets (Server Code Grounding Protocol).
 - **Dependency Check**: Before running `uv add` or `pip install`, verify the package is well-known and relevant. No obfuscated or suspicious packages.
 
 ## ML Tasks

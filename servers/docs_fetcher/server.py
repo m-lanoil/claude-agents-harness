@@ -29,6 +29,9 @@ OTHER_SOURCES_PATH = Path(__file__).parent / "other_sources.json"
 # Session-scoped in-memory cache: URL -> raw HTML
 _cache: dict[str, str] = {}
 
+# Session-scoped: hash of cleaned page text -> first URL that returned it (advisory duplicate-content check)
+_seen_content: dict[int, str] = {}
+
 
 def _load_libraries() -> dict:
     if LIBRARIES_PATH.exists():
@@ -131,6 +134,27 @@ def _clean_html(html: str) -> str:
         if len(text) >= MIN_CONTENT_CHARS or len(text) >= len(body_text) / 4:
             return text
     return body_text
+
+
+def _page_title(html: str) -> str | None:
+    """The page's <title> text, or None for PDF-extracted text and pages without one."""
+    if isinstance(html, _PlainText):
+        return None
+    title = BeautifulSoup(html, "html.parser").find("title")
+    return (title.get_text().strip() or None) if title else None
+
+
+def _page_checks(url: str, raw: str, content: str) -> dict:
+    """Extra response fields: the page title, plus a warning if another URL already returned identical content this session."""
+    checks = {"title": _page_title(raw)}
+    if content.strip():
+        first_url = _seen_content.setdefault(hash(content), url)
+        if first_url != url:
+            checks["warning"] = (
+                f"Content is identical to {first_url}, fetched earlier this session. "
+                "The site may serve one page for every route; check that this is the page you asked for."
+            )
+    return checks
 
 
 @mcp.tool(annotations={"readOnlyHint": True})
@@ -250,6 +274,7 @@ def fetch_docs(library: str, topic: str = "", char_offset: int = 0) -> dict:
         "content": window,
         "total_chars": total_chars,
         "char_offset": char_offset,
+        **_page_checks(url, result, content),
     }
 
 
@@ -282,6 +307,7 @@ def fetch_url(url: str, char_offset: int = 0) -> dict:
         "content": window,
         "total_chars": total_chars,
         "char_offset": char_offset,
+        **_page_checks(url, result, content),
     }
 
 

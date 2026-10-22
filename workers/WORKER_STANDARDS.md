@@ -13,7 +13,7 @@ Every worker `CLAUDE.md` must include all six items, regardless of mandate.
 | 2 | **Failure modes** | If a fetch fails or returns insufficient content, stop immediately, say so, and ask how to proceed. No silent fallback to training data or unverified content. |
 | 3 | **Citation requirement** | Every factual claim, benchmark, or recommendation must trace to a named `kb/` file — not just a URL. "Cite sources inline" alone is not sufficient. |
 | 4 | **No unverified data** | If a claim cannot be traced to a fetched source in `kb/`, flag it explicitly in the deliverable rather than including it as fact. |
-| 5 | **Sandboxing** | File writes explicitly scoped based on worker type. **Deliverable workers** (Architect, Content, Researcher): `./kb/`, `./human-retrieved-sources/`, and `../../output/` only. **Code workers** (Developer): all work (scripts, data, outputs, requirements) lives in `./sandbox/<project_name>/`; final deliverables (PDFs, structured outputs for the user) to `../../output/`; human-retrieved sources also permitted at `./human-retrieved-sources/`. Never put files directly in the sandbox root. Use `lowercase_snake_case` for all folder and file names. |
+| 5 | **Sandboxing** | File writes explicitly scoped based on worker type. **Deliverable workers** (Architect, Content, Researcher): `./kb/`, `./human-retrieved-sources/`, and `../../output/` only. **Code workers** (Developer): all work (scripts, data, outputs, requirements) lives in `./sandbox/<project_name>/`; final deliverables (PDFs, structured outputs for the user) to `../../output/`; human-retrieved sources also permitted at `./human-retrieved-sources/`. Server grounding: only the `../../servers/kb/kb_[library].md` files the task brief names as targets (Server Code Grounding Protocol). Never put files directly in the sandbox root. Use `lowercase_snake_case` for all folder and file names. |
 | 6 | **Human-in-the-loop** | Confirm before any action that is hard to reverse. URL approval happens pre-task via the task brief — do not pause mid-task to request it. |
 
 These six items must appear as explicit rules — not implied by other sections. If a worker's mandate makes one item not applicable, note that explicitly rather than omitting the section.
@@ -57,6 +57,9 @@ file exactly as normal, citing the local file path in the frontmatter `note:` fi
 fetch URL. This is not a training-data fallback — the Grounding Protocol's "no unverified data"
 rule still applies; the substitution itself must be disclosed, not silently absorbed as if it were
 a normal fetch.
+
+### Page match check
+Before saving a kb file, confirm the fetched page matches what the brief or registry says it is (title or first heading, topic). If it does not, or if two different URLs return identical content, treat it as a failed fetch under Security Baseline item 2: do not save it under the named source, say so, and ask how to proceed (Human-Retrieved Source Protocol applies in manual mode). Client-rendered docs sites can return the same page for every route with no error.
 
 ### Token Budget Protocol
 1. **Pre-task declaration** — fetch budget and any approved URLs for non-registered sources are specified in the task brief. Do not re-declare mid-task — proceed within the budget given.
