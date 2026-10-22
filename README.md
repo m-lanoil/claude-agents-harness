@@ -4,7 +4,7 @@
 
 ## What this is
 
-A Claude Code harness. A root `CLAUDE.md` makes the main session a Meta-Orchestrator that classifies a task, drafts a task brief, and routes it to one of four workers (Developer, Architect, Content, Researcher). The workers are backed by two local MCP servers: `docs_fetcher` (fetch and cache documentation) and `system_monitor` (read-only system stats) (`CLAUDE.md`, `servers/`). The rules are plain markdown. A coordinator program and a 5-phase pipeline sit alongside; both are built but not currently used, and are kept for future buildouts (`coordinator/README.md`, `pipeline/PIPELINE.md`).
+A Claude Code harness. A root `CLAUDE.md` makes the main session a Meta-Orchestrator that classifies a task, drafts a task brief, and routes it to one of five workers (Developer, Architect, Content, Researcher, Scout). The workers are backed by three local MCP servers: `docs_fetcher` (fetch and cache documentation), `system_monitor` (read-only system stats) and `web_search` (Brave Search API, scout only) (`CLAUDE.md`, `servers/`). The rules are plain markdown. A coordinator program and a 5-phase pipeline sit alongside; both are built but not currently used, and are kept for future buildouts (`coordinator/README.md`, `pipeline/PIPELINE.md`).
 
 The repo is a **template**. Runtime state is gitignored: `TOOL_LOG.md`, `logs/*`, `kb/`, `sandbox/`, `output/*`, `pipeline/runs/`, `.mcp.json`, `.claude/*`, the docs_fetcher source registries and routing prompts (`.gitignore`). Tracked onboarding files are the `*_TEMPLATE.*` and `*.template.json` files.
 
@@ -51,9 +51,10 @@ flowchart TD
 | Developer | `workers/developer/` | Grounded code, sandbox scripts, ML tasks, system checks, technical docs | `docs_fetcher`, `system_monitor` |
 | Architect | `workers/architect/` | Technology selection, architecture proposals, tradeoffs; no code | `docs_fetcher` |
 | Content | `workers/content/` | Research-grounded written deliverables and document review; no code, no technical docs | `docs_fetcher` |
-| Researcher | `workers/researcher/` | Pre-task planning docs; no code, no architecture | `docs_fetcher` |
+| Researcher | `workers/researcher/` | Pre-task planning docs, and research reports from owner-approved sources (report mode); no code, no architecture | `docs_fetcher` |
+| Scout | `workers/scout/` | Source discovery by web search for owner approval; no fetching, no findings | `web_search` |
 
-**Tools.** `docs_fetcher` has 11 tools (list/add for libraries, CLIs and other sources; `fetch_docs`, `fetch_url`, `search_docs`, `crawl_docs`, `get_fetch_stats`). `system_monitor` has 5 (CPU, memory, disk, directory size, large-file scan) (`servers/*/server.py`).
+**Tools.** `docs_fetcher` has 11 tools (list/add for libraries, CLIs and other sources; `fetch_docs`, `fetch_url`, `search_docs`, `crawl_docs`, `get_fetch_stats`). `system_monitor` has 5 (CPU, memory, disk, directory size, large-file scan). `web_search` has 1 (read-only web search) (`servers/*/server.py`).
 
 **Manual vs coordinator mode.** Manual: the Meta-Orchestrator writes a self-contained routing prompt to `workers/<worker>/routing_prompt_<slug>.md` (gitignored), and you open a Claude Code session in that worker directory and have it read the file. Before the prompt is deleted, a copy goes to `output/intermediate_outputs/<topic>/hop_N_<worker>_<name>.md` with an outcome note (`CLAUDE.md`). Coordinator: `python -m coordinator` runs the chain through the Claude Agent SDK, with automated acceptance checks (file exists, required sections present, self-critique present) and an internal read-only Validator (`coordinator/README.md`, `coordinator/acceptance.py`, `coordinator/worker_registry.py`). A standing override active since 2026-09-28 disables coordinator selection; manual is the active path (`workers/MODE_SELECTION_PROTOCOL.md`).
 
@@ -69,14 +70,16 @@ Setup is derived only from the templates, `servers/*/pyproject.toml` and `CLAUDE
 4. Copy the three `servers/docs_fetcher/*.template.json` files to `libraries.json`, `clis.json`, `other_sources.json` and fill them with the documentation URLs workers may fetch. `WORKER_STANDARDS.md` says these files are gitignored and may be absent, and says to create one as `{}` if missing.
 5. Optional runtime logs: `TOOL_LOG_TEMPLATE.md`, `KB_STALENESS_LOG_TEMPLATE.md`, `SERVER_FRESHNESS_ALERTS_TEMPLATE.md`, `MARKDOWN_LENGTH_ALERTS.TEMPLATE.md` and `logs/*_TEMPLATE.md` are blank examples of the gitignored logs. (Whether to copy them is unverified; the scripts create their own alert files.)
 6. Whether `uv` installs server dependencies automatically on first run, or needs a separate sync, is not stated in tracked files (unverified). `uv.lock` files are present for both servers.
-7. Start Claude Code at the repo root. The `scripts/check_*.py` checks are described as weekly cron jobs in `CLAUDE.md`; the cron setup itself is not tracked (unverified), so run the scripts by hand if you have not scheduled them. The SessionStart hooks come from `.claude/settings.json` (step 3).
+7. Scout only (optional): copy `workers/scout/.mcp.template.json` to `workers/scout/.mcp.json` and `workers/scout/.claude/settings.local.template.json` to `workers/scout/.claude/settings.local.json`, replace `<YOUR_PROJECT_ROOT>`, and export `BRAVE_SEARCH_API_KEY`. The root `.mcp.template.json` intentionally has no `web_search`. (Key delivery to the server is unverified; no live Brave call has been made.)
+8. Start Claude Code at the repo root. The `scripts/check_*.py` checks are described as weekly cron jobs in `CLAUDE.md`; the cron setup itself is not tracked (unverified), so run the scripts by hand if you have not scheduled them. The SessionStart hooks come from `.claude/settings.json` (step 3).
 
 ## Current state
 
 Components and what each is (details and maturity signals in [`STATUS.md`](STATUS.md)):
 - Meta-Orchestrator rules and protocols: `CLAUDE.md`, `workers/*_PROTOCOL.md`, `workers/WORKER_STANDARDS.md`, `EPHEMERAL_TASK_LOG_PROTOCOL.md`, `servers/TOOL_BUILDING_LOOP.md`.
-- Four workers: `workers/{developer,architect,content,researcher}/CLAUDE.md`.
-- Two MCP servers with lockfiles: `servers/docs_fetcher/`, `servers/system_monitor/` (plus two SessionStart hook scripts).
+- Five workers: `workers/{developer,architect,content,researcher,scout}/CLAUDE.md`.
+- Three MCP servers with lockfiles: `servers/docs_fetcher/`, `servers/system_monitor/`, `servers/web_search/` (plus two SessionStart hook scripts).
+- Research report format: `workers/RESEARCH_REPORT_PROTOCOL.md`.
 - Coordinator program (five modules, disabled by standing override): `coordinator/`.
 - Pipeline (five phase files and a run-contract checker; unused, kept for future buildouts): `pipeline/`, `scripts/check_pipeline_run.py`.
 - Maintenance scripts: KB staleness, server freshness, markdown length (<=100 non-empty lines for rule files), pipeline run check: `scripts/`.
@@ -84,12 +87,13 @@ Components and what each is (details and maturity signals in [`STATUS.md`](STATU
 
 ## Evidence and track record
 
-What the tracked repo can show: the build-out timeline in `git log`, 52 commits from 2026-03-30 (e1ed54c) to 2026-09-28 (5247a95).
+What the tracked repo can show: the build-out timeline in `git log`, 58 commits from 2026-03-30 (e1ed54c) to 2026-10-14 (528b48c).
 - 2026-03-30 to 2026-04-06: initial structure with the `docs_fetcher` server, then `system_monitor` and the CLI/other-sources registries (4497270, 0b92a2f, b4c1a4b, per commit messages).
 - 2026-05-11 to 2026-05-15: worker standards extracted into a shared file (3da531f), a template-only branch initialized (20ea7aa), and runtime logs untracked (4f3e92a, c44b26f), all per commit messages.
 - 2026-06-16 to 2026-06-29: bug-fix, documentation and context-intake protocols (00c0e53); Agent SDK coordinator and two-mode architecture (084eb28, 6d8df9f), per commit messages.
 - 2026-07-08 to 2026-07-23: five-phase pipeline, taste config and run checker (beea21f, 71b9b42, 1f48d9b), per commit messages.
 - 2026-08-28 to 2026-09-28: ephemeral task log (70781a8), human-retrieved-sources protocol (3d96d6b), coordinator mode disabled and manual-mode handoff archiving required (aa8e3e6), `docs_fetcher` fixes (5247a95), per commit messages.
+- 2026-10-06 to 2026-10-14: README and STATUS added (e5e73fc), read-only annotations on MCP tools (8aee2eb), track-record fields and owner-triggered archive protocol (1ded804, 528b48c), per commit messages.
 
 What it cannot show: the history includes a commit titled "Archive full working state: outputs, all kb files, and sandbox scripts" (306bf88), later followed by a template-only reset (20ea7aa), but the current tracked tree contains no outputs, logs, kb files or run artifacts. No task outcomes, success rates, or cost/time per task are evidenced in tracked files. Nothing here should be read as a claim that the harness works well on real tasks; see "Not yet evidenced" in [`STATUS.md`](STATUS.md).
 
@@ -98,10 +102,10 @@ What it cannot show: the history includes a commit titled "Archive full working 
 
 ### Why an orchestrator with specialized workers
 
-The root `CLAUDE.md` gives the main session one job: classify, route and build infrastructure. It does not write application code, architecture proposals or research deliverables (`CLAUDE.md`, Role). Each worker has one mandate and a short rule file: Developer for code and technical docs, Architect for technology selection with no code, Content for written deliverables, Researcher for pre-task planning (`workers/*/CLAUDE.md`). The routing rules also fix who owns ambiguous work, for example technical docs go to Developer and Content must refuse them (`CLAUDE.md` Task Start Checklist; `workers/content/CLAUDE.md`; 79fe7c6).
+The root `CLAUDE.md` gives the main session one job: classify, route and build infrastructure. It does not write application code, architecture proposals or research deliverables (`CLAUDE.md`, Role). Each worker has one mandate and a short rule file: Developer for code and technical docs, Architect for technology selection with no code, Content for written deliverables, Researcher for pre-task planning and research reports, Scout for source discovery (`workers/*/CLAUDE.md`). The routing rules also fix who owns ambiguous work, for example technical docs go to Developer and Content must refuse them (`CLAUDE.md` Task Start Checklist; `workers/content/CLAUDE.md`; 79fe7c6).
 
 What the split buys:
-- **Narrow tool surface.** Only Developer gets `system_monitor`; the other three get `docs_fetcher` only (`CLAUDE.md` Workers table; `coordinator/worker_registry.py`, `_WORKER_MCP_NAMES`). The building loop says to "err toward fewer tools" (`workers/WORKER_BUILDING_LOOP.md`, step 3).
+- **Narrow tool surface.** Only Developer gets `system_monitor`; only Scout gets `web_search`; the other three get `docs_fetcher` only (`CLAUDE.md` Workers table; `coordinator/worker_registry.py`, `_WORKER_MCP_NAMES`). The building loop says to "err toward fewer tools" (`workers/WORKER_BUILDING_LOOP.md`, step 3).
 - **Scoped writes (by instruction).** Each worker is instructed to write only to its own `kb/`, `human-retrieved-sources/` and `../../output/`; Developer also has `sandbox/` (`workers/WORKER_STANDARDS.md` item 5). The coordinator runs each worker with its own directory as `cwd` so that worker's `CLAUDE.md` loads (`coordinator/README.md`, CLAUDE.md loading).
 - **One place for shared rules.** Common rules live in `workers/WORKER_STANDARDS.md`; worker files hold only mandate-specific content. Commit 3da531f describes this refactor, and `workers/WORKER_GAP_PROTOCOL.md` routes fixes to the shared file first.
 - **No cross-worker prompt writing.** Workers state the next hand-off and stop; only the orchestrator drafts routing prompts (`workers/WORKER_STANDARDS.md`, Handoff Rule). Inferred from that rule: this keeps classification and the audit trail in one place.
