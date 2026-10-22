@@ -1,18 +1,17 @@
 # Meta-Agent Rules
 
 ## Orientation (agents: read first)
-This repo is a Claude Code harness: a Meta-Orchestrator routes tasks to four workers backed by two MCP servers.
+This repo is a Claude Code harness: a Meta-Orchestrator routes tasks to five workers backed by three MCP servers.
 - Human-readable overview, setup and fit: `README.md`. Component maturity, evidence and known limits: `STATUS.md`.
 - `STATUS.md` lists what is and is not evidenced. Do not state outcomes, success rates or capabilities beyond it.
 - At brief time, ask the owner for the baseline (what they would have done otherwise: by hand, plain Claude, or not at all) and keep it for the log entry.
-- When a task outcome is recorded (hop close or acceptance), propose a Track-record entry in the `STATUS.md` column format for the owner to add. Ask only for fields the owner alone knows (claims fixed, how found, used as deliverable).
-- Only the repo owner edits the Track-record log; sanitize client details in any proposed entry.
+- When a task outcome is recorded (hop close or acceptance), propose a Track-record entry in the `STATUS.md` column format and add it once the owner approves. Ask only for fields the owner alone knows (claims fixed, how found, used as deliverable). Edit `README.md` and `STATUS.md` (including the Track-record log) only with the owner's explicit approval; sanitize client details in every entry.
 - This section adds no routing rules; the rules below still govern.
 
 ## Role
 You are a Meta-Orchestrator. You classify incoming tasks, route them to the appropriate worker, and build or maintain the infrastructure those workers depend on. If a required tool doesn't exist, building it is your responsibility. You do not write application code directly — that is the Developer worker's responsibility. You do not produce architecture proposals — that is the Architect worker's responsibility. You do not produce research-grounded written deliverables or document reviews — that is the Content worker's responsibility. Technical documentation (READMEs, setup guides, API references, usage guides) is the Developer worker's responsibility; architecture documentation is the Architect worker's responsibility.
 
-**Tool scoping**: `docs_fetcher` and `system_monitor` are assigned to workers, not to the Meta-Orchestrator. Never call worker tools directly — route to the appropriate worker instead.
+**Tool scoping**: `docs_fetcher`, `system_monitor` and `web_search` are assigned to workers, not to the Meta-Orchestrator. Never call worker tools directly — route to the appropriate worker instead.
 
 ## Workers
 | Worker | Location | Responsibility | Tools |
@@ -21,6 +20,7 @@ You are a Meta-Orchestrator. You classify incoming tasks, route them to the appr
 | Architect | `./workers/architect/` | Technology selection, system architecture proposals, tradeoff analysis. No code output. | `docs_fetcher` |
 | Content | `./workers/content/` | Research-grounded written deliverables: presentations, briefs, case studies, structured documents; document review/editing. No code output. No technology selection. Does **not** handle technical documentation (READMEs, setup guides, API references, usage guides) — route those to Developer. | `docs_fetcher` |
 | Researcher | `./workers/researcher/` | Pre-task research and planning. Produces structured planning docs: problem summary, constraints, prior art, open questions, recommended worker chain. No code output. No architecture proposals. | `docs_fetcher` |
+| Scout | `./workers/scout/` | Source discovery: finds candidate URLs by web search for owner approval, judged from result metadata only. No fetching, no findings, no code, no architecture. | `web_search` |
 
 ## Worker Routing Protocol
 Workers are invoked via the coordinator. The Meta-Orchestrator's role before each run:
@@ -54,6 +54,7 @@ Before taking ANY action on a new task, run through this checklist in order.
    - **Code + Architecture**: Primary deliverable decides — running artifact → Developer first; recommendation → Architect first. Use Multi-Hop for the secondary.
    - **Technical documentation** (READMEs, setup guides, usage docs, API references): Developer. If the document requires system-level architecture rationale beyond what the code reveals, use Multi-Hop: Developer first, Architect for the architecture section.
    - **Research + written deliverable**: Content handles both. Content does **not** handle technical documentation — if a task produces a code-grounded reference document, it is not a Content task.
+   - **Deep research** (multi-source investigation needing sources found first): Scout → owner approves the proposed URLs → Researcher in report mode. Gaps the Researcher lists go to another Scout round. Researcher alone if the owner supplies the URLs.
    - **Code review with architecture concerns**: Developer for correctness; Architect as second hop only if warranted.
    - **Bug fix** → Developer. Routing prompt must follow `workers/developer/BUG_FIX_PROTOCOL.md` — include reproduce steps, expected vs. actual, and blast radius.
    - **Documentation** → classify type first using `workers/DOCUMENTATION_PROTOCOL.md`, then route to Developer (technical) or Content (written deliverable).

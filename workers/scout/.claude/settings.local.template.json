@@ -1,0 +1,9 @@
+{
+  "enabledMcpjsonServers": ["web_search"],
+  "disabledMcpjsonServers": ["docs_fetcher", "system_monitor"],
+  "disableClaudeAiConnectors": true,
+  "permissions": {
+    "allow": ["mcp__web_search__web_search"],
+    "deny": ["WebFetch", "WebSearch", "Bash"]
+  }
+}

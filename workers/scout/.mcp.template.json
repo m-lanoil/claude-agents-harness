@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "web_search": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "--project",
+        "<YOUR_PROJECT_ROOT>/servers/web_search",
+        "run",
+        "<YOUR_PROJECT_ROOT>/servers/web_search/server.py"
+      ],
+      "env": {
+        "BRAVE_SEARCH_API_KEY": "${BRAVE_SEARCH_API_KEY}"
+      }
+    }
+  }
+}

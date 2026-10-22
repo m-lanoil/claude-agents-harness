@@ -11,6 +11,7 @@ WORKER_DIRS: dict[str, Path] = {
     "architect": _REPO_ROOT / "workers" / "architect",
     "content": _REPO_ROOT / "workers" / "content",
     "researcher": _REPO_ROOT / "workers" / "researcher",
+    "scout": _REPO_ROOT / "workers" / "scout",
 }
 
 _WORKER_TOOLS: dict[str, list[str]] = {
@@ -18,6 +19,7 @@ _WORKER_TOOLS: dict[str, list[str]] = {
     "architect": ["Read", "Glob", "Grep", "Write"],
     "content": ["Read", "Glob", "Grep", "Write"],
     "researcher": ["Read", "Glob", "Grep", "Write"],
+    "scout": ["Read", "Glob", "Grep", "Write"],
 }
 
 _WORKER_MCP_NAMES: dict[str, list[str]] = {
@@ -25,6 +27,7 @@ _WORKER_MCP_NAMES: dict[str, list[str]] = {
     "architect": ["docs_fetcher"],
     "content": ["docs_fetcher"],
     "researcher": ["docs_fetcher"],
+    "scout": ["web_search"],
 }
 
 
@@ -42,6 +45,7 @@ def _uv_server(name: str) -> dict:
 _ALL_MCP: dict[str, dict] = {
     "docs_fetcher": _uv_server("docs_fetcher"),
     "system_monitor": _uv_server("system_monitor"),
+    "web_search": _uv_server("web_search"),
 }
 
 
