@@ -74,6 +74,8 @@ Field values: Task type is research brief, comparison, presentation or case stud
 
 Entries are added by the repo owner, or by the Meta-Orchestrator with the owner's explicit approval, and must be sanitized of client details. A hop-close step should propose an entry.
 
+Revisit trigger: when this log reaches 10 entries (5 so far), revisit question 3 (comparison with what exists) in [`PROBLEM_INVESTIGATION.md`](PROBLEM_INVESTIGATION.md).
+
 ## Last reviewed
 
 2026-10-06
