@@ -9,8 +9,28 @@ State the recommended mode and reason before routing. The user can override.
 Coordinator mode is disabled by standing user instruction. Always recommend **Manual mode**,
 regardless of which Coordinator/Hybrid criteria below would otherwise apply — do not use them to
 select Coordinator. The `coordinator/` program itself is untouched by this override; it is kept in
-the repo, just not invoked by the routing workflow. Remove this section to re-enable Coordinator
-mode selection.
+the repo, just not invoked by the routing workflow.
+
+**Why:** the tasks run so far needed owner judgment on sources and acceptance that a hop chain
+could not give (owner, 2026-10-06).
+**Intent (owner, 2026-10-23):** manual mode is where the failures a coordinator would hit are found
+and fixed. The goal is Coordinator for eligible tasks, with Manual always available as the fallback.
+**Re-enable:** when all exit criteria below are met, the owner approves replacing this section with
+"Default Manual; Coordinator only for tasks meeting the criteria below, chosen per task by the owner."
+Until then, do not recommend Coordinator.
+
+### Exit criteria (all required)
+1. **Acceptance reliability:** the last 5 coordinator-eligible tasks logged no orchestrator acceptance
+   misfire (a real quote flagged as ungrounded, or a misattributed claim passed).
+2. **Brief accuracy:** the same 5 tasks had no brief item the owner had to reverse. Coordinator workers
+   cannot ask mid-task, so a wrong brief goes uncorrected.
+3. **Failed-fetch path:** the coordinator has a defined behaviour for a blocked or wrong page (stop,
+   report, resume). The Human-Retrieved Source Protocol is manual-only today.
+4. **Trial run:** one coordinator run per eligible task type (see Hybrid cases below). The owner reviews
+   the output against what manual mode would have produced, and accepts it with no more corrections than
+   the manual baseline.
+5. **Fallback intact:** a failed coordinator run can be continued in Manual mode from its hop files.
+6. **Tests:** `coordinator/` has tracked tests (part of the 10-entry batch in `STATUS.md`).
 
 ## Coordinator mode — use when all of these hold
 - Spec is complete and self-contained: worker needs no mid-task clarification
