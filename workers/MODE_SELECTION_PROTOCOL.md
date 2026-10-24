@@ -55,6 +55,24 @@ For manual mode: give the worker directory path and tell the user to open a Clau
 
 In hybrid cases, state the assumption that makes coordinator viable (e.g. "treating the root cause as confirmed per the brief").
 
+## Error cost (applies only after the standing override is lifted)
+Eligibility and error cost are separate tests. Coordinator mode needs both.
+
+1. **Eligibility** — the "Coordinator mode — use when all of these hold" list above.
+2. **Error cost** — state at brief time, and the owner confirms:
+   - **Low**: an error is cheap to catch and reverse. Examples: internal working notes, scoping or source-discovery rounds, exploratory drafts the owner will rewrite.
+   - **High**: an error could reach a client or third party, be used as a deliverable without further review, or be hard to reverse. Examples: client-facing documents, anything with figures or quotes the owner will not re-check, system-level or destructive changes.
+
+| Eligible | Error cost | Mode |
+|---|---|---|
+| yes | low | Coordinator |
+| yes | high | Coordinator for earlier hops only; final hop and its acceptance in Manual mode, with the owner reviewing every claim against its source |
+| no | any | Manual |
+
+If error cost is unclear, treat it as high.
+
+**Why:** the coordinator's acceptance check confirms structure (file, sections, self-critique) and flags ungrounded claims, but workers cannot ask mid-task. A wrong brief or a missed claim reaches the owner only after the run. Where that is cheap, accept it; where it is not, keep a human at the point where the deliverable is finalised.
+
 ## How to communicate
 > "Recommended mode: **[coordinator / manual]** — [one-line reason]."
 
