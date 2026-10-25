@@ -20,4 +20,6 @@ Applies when writing or extending `server.py`. Meta-Orchestrator cannot call `do
 2. For each import, check `./servers/kb/` for a kb file with `fetched:` ≤30 days. If missing or stale, route to Developer: *"Fetch docs for [library] and write to `../../servers/kb/kb_[library].md`."* Read before proceeding.
 3. Do not write `server.py` until every import is grounded.
 
+**Grounding Handoff Note**: a grounding-only task ends with a note at the path named in the brief, with exactly these sections: **Files Written** (each kb file with source URL and fetched date), **Discrepancies** (conflicts between sources or against the brief), **Self-Critique** (gaps, budget used, anything not covered, confidence). Briefs say "output a Grounding Handoff Note to `<path>`" and do not restate the sections.
+
 **Post-write audit**: Re-scan every import and tool call signature against its kb file. If any pattern is absent, route back to Developer and resolve before finalising.

@@ -115,7 +115,7 @@ The sandbox is a rule, not a mechanism. The coordinator gives workers `Write` wi
 ### Why human gates
 
 The gates sit where an error is expensive or hard to see:
-- **Brief approval.** The orchestrator drafts the brief and waits for explicit approval before giving the run command (`CLAUDE.md`, Worker Routing Protocol). Workers cannot ask mid-task, so the brief must be complete (`CLAUDE.md`, Routing Prompt Quality Standard).
+- **Brief approval.** The orchestrator drafts the brief and waits for explicit approval before giving the run command (`CLAUDE.md`, Worker Routing Protocol). Workers cannot ask mid-task, so the brief must be complete but carry only the task-specific delta (`CLAUDE.md`, Routing Prompt Quality Standard; full rules in `workers/ROUTING_PROMPT_PROTOCOL.md`).
 - **URL approval up front.** Workers fetch only registered or briefed URLs and flag the rest instead of fetching (`workers/WORKER_STANDARDS.md` item 1). Approval happens before the task, not during it (items 1 and 6). Inferred from `workers/WORKER_STANDARDS.md`: this bounds what external content reaches a deliverable.
 - **Failed fetch stops the task.** A failed or thin fetch must be reported and the worker asks how to proceed; there is no silent fall back to training data (item 2). When the user supplies a replacement, the substitution is disclosed (Human-Retrieved Source Protocol; 3d96d6b).
 - **Acceptance and gaps.** The coordinator checks file existence, required sections and a self-critique, and every reported gap pauses for acknowledgment with no severity filter (`coordinator/README.md`, Q3; `coordinator/acceptance.py`). The README gives the reason: surface worker judgment to the human rather than make editorial calls.

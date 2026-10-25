@@ -39,11 +39,9 @@ Worker chain, output path, and sections are pre-specified — the coordinator sk
 **Manual-mode handoff record**: Coordinator mode logs each hop to `intermediate_outputs/` automatically; manual mode has no equivalent unless you create one. Before deleting a consumed routing prompt, copy it into `output/intermediate_outputs/<topic>/hop_N_<worker>_<short-name>.md` (numbered in hop order) with a short **Outcome** note (accepted / correction needed / what changed) appended below the prompt text. Only delete the `workers/<worker>/routing_prompt_*.md` original after that copy exists.
 
 ### Routing Prompt Quality Standard
-The coordinator auto-injects: worker identity, checklist invocation, self-critique instruction, and JSON return block. The Meta-Orchestrator is responsible for the task brief content:
-- **Task description**: self-contained context, relevant file paths, constraints the worker must respect.
-- **Fetch budget**: *"Suggested fetch budget: N sources."* The worker treats this as a hard cap. The budget counts distinct URLs; paginating an approved URL with `char_offset` does not count. Never word a cap as "one fetch per URL".
-- **Expected output**: specify file path, format, and required section names (entered separately as coordinator inputs).
-- **Approved URLs**: if the task requires non-registered URLs, pass them via `--approved-urls` as a JSON string — `'{"libraries": {"name": "url"}, "clis": {"name": "url"}, "other": {"name": "url"}}'` (any key may be omitted). The coordinator pre-registers them before invoking the worker.
+Full standard: `workers/ROUTING_PROMPT_PROTOCOL.md`. Read it before drafting any brief. A brief carries only the task-specific delta: task and context, state at brief time, URL-to-file inputs, fetch budget (hard cap on distinct URLs; `char_offset` is free), scope fence, one-off authorizations, provenance, and output path and sections.
+- **Never restate** what the worker's `CLAUDE.md`, `WORKER_STANDARDS.md` or the coordinator injection already enforce (identity, checklist, stop-and-ask, kb format, handoff, sandbox). Cite a rule in one line if needed.
+- **Diff test**: cut any sentence the worker would behave the same without. A sentence repeated across briefs is a worker gap → Worker Gap Protocol.
 
 ### Acceptance Check
 The coordinator runs this automatically after each worker invocation: file existence, required section scan, and self-critique present. It surfaces gaps and runs one correction retry before escalating. Manual override: read the deliverable and verify against the spec if coordinator output needs human judgment.
