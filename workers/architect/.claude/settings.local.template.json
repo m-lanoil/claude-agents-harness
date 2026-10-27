@@ -1,0 +1,4 @@
+{
+  "enabledMcpjsonServers": ["docs_fetcher"],
+  "disabledMcpjsonServers": ["system_monitor"]
+}

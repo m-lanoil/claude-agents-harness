@@ -234,6 +234,8 @@ MARKDOWN_LENGTH_ALERTS.md
 .mcp.json
 .claude/*
 !.claude/*.template.json
+workers/*/.claude/*
+!workers/*/.claude/*.template.json
 workers/content/memory/*
 !workers/content/memory/.gitkeep
 pipeline/runs/

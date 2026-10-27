@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(/<YOUR_PROJECT_ROOT>/**)",
+      "mcp__docs_fetcher__fetch_url",
+      "mcp__docs_fetcher__search_docs",
+      "mcp__docs_fetcher__fetch_docs",
+      "mcp__docs_fetcher__get_fetch_stats",
+      "mcp__docs_fetcher__add_other_source"
+    ]
+  },
+  "enabledMcpjsonServers": ["docs_fetcher"],
+  "disabledMcpjsonServers": ["system_monitor"]
+}
