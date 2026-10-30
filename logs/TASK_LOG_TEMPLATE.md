@@ -7,7 +7,7 @@
 | **Project** | [path] |
 | **Session goal** | [one line] |
 | **Started** | YYYY-MM-DD |
-| **Delete when** | All tasks closed and no owner items outstanding |
+| **Close when** | All tasks closed and no owner items outstanding (archive per protocol, do not delete) |
 | **Note** | [optional: related logs, source files, scope exclusions] |
 
 ---

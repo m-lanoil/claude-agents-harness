@@ -75,7 +75,7 @@ For end-to-end feature work (research → plan → code → validate → publish
 The coordinator handles multi-hop chains automatically when you specify a comma-separated worker chain (e.g. `architect,developer`). The Meta-Orchestrator's role: identify the worker sequence and describe in the task brief what each hop must produce for the next. For each hop after the first, explicitly instruct it to read the prior hop's output — the path is available in hop context but workers will not read it unless told to. The coordinator sequences invocations, passes hop context forward, and runs per-hop acceptance checks.
 
 ## Ephemeral Task Log Protocol
-See `EPHEMERAL_TASK_LOG_PROTOCOL.md` at the repo root. Create `logs/active_task_log.md` when a session involves 3+ sequential or dependent tasks (including non-worker batches, e.g. running the same folder protocol across multiple pending inputs) — not just single tasks or ad hoc questions. Update it after each task closes; delete it once every task is closed and no owner items are outstanding. Never commit it.
+See `EPHEMERAL_TASK_LOG_PROTOCOL.md` at the repo root. Create `logs/active_task_log.md` when a session involves 3+ sequential or dependent tasks (including non-worker batches, e.g. running the same folder protocol across multiple pending inputs) — not just single tasks or ad hoc questions. Update it after each task closes; once every task is closed and no owner items are outstanding, copy it to `output/intermediate_outputs/<topic>/closed_task_log_<short-name>.md` with an Outcome note, then remove it from `logs/` (never delete it without that copy). Never commit it.
 
 ## Infrastructure Rules
 - Use `uv` for all Python environments (no bare `pip install`, no `venv` manually).
