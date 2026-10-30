@@ -4,12 +4,12 @@ from datetime import datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent
-ALERTS_FILE = PROJECT_ROOT / "MARKDOWN_LENGTH_ALERTS.md"
+ALERTS_FILE = PROJECT_ROOT / "logs/MARKDOWN_LENGTH_ALERTS.md"
 LIMIT = 100
 PATTERNS = [
     "CLAUDE.md", "workers/*/CLAUDE.md", "workers/WORKER_STANDARDS.md",
     "workers/*_PROTOCOL.md", "workers/*_CONVENTION.md", "scripts/*.md",
-    "pipeline/PIPELINE.md", "pipeline/phases/*.md", "TASTE.md",
+    "pipeline/PIPELINE.md", "pipeline/phases/*.md", "TASTE.md", "logs/*_PROTOCOL.md",
 ]
 
 

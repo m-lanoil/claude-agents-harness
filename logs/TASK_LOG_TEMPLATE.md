@@ -1,6 +1,6 @@
 # Active Task Log — [Session Name]
 
-<!-- Copy to logs/active_task_log_<topic>.md (lowercase snake_case). One file per topic. Rules: EPHEMERAL_TASK_LOG_PROTOCOL.md. Status, deliverables and outstanding items only; no narrative. Never commit the copy. -->
+<!-- Copy to logs/active_task_log_<topic>.md (lowercase snake_case). One file per topic. Rules: logs/EPHEMERAL_TASK_LOG_PROTOCOL.md. Status, deliverables and outstanding items only; no narrative. Never commit the copy. -->
 
 | | |
 |---|---|

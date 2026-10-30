@@ -61,9 +61,9 @@ Before taking ANY action on a new task, run through this checklist in order.
    - **Infrastructure**: Use `uv`. Store tools in `./servers/`. Use `fastmcp` (v3) with `FastMCP`.
    - **Worker/Tool-Building**: Extend before creating. Get explicit approval before editing `server.py` or running `claude mcp add`. Worker drafts must satisfy all items in `workers/WORKER_STANDARDS.md`.
    - **Security**: Confirm before any delete, format, or system-level command.
-   - **Verification**: Dry Run before registering any tool. Log all changes: server history in `logs/[server].md`, worker gap fixes in `logs/worker_updates.md`, new entries in `TOOL_LOG.md` index.
-4. **Server freshness check**: Automated by weekly cron (`scripts/check_server_freshness.py`, Mondays 9am). Check `SERVER_FRESHNESS_ALERTS.md` — if the latest entry is dated within the past 7 days and marked **STALE**, run the **Server Freshness Protocol** before proceeding. Otherwise skip.
-5. **Markdown length check**: Run `scripts/check_markdown_length.py` to refresh. Check `MARKDOWN_LENGTH_ALERTS.md` — if any rule markdown is flagged **OVER_LIMIT**, trim it before proceeding.
+   - **Verification**: Dry Run before registering any tool. Log all changes: server history in `logs/[server].md`, worker gap fixes in `logs/worker_updates.md`, new entries in `logs/TOOL_LOG.md` index.
+4. **Server freshness check**: Automated by weekly cron (`scripts/check_server_freshness.py`, Mondays 9am). Check `logs/SERVER_FRESHNESS_ALERTS.md` — if the latest entry is dated within the past 7 days and marked **STALE**, run the **Server Freshness Protocol** before proceeding. Otherwise skip.
+5. **Markdown length check**: Run `scripts/check_markdown_length.py` to refresh. Check `logs/MARKDOWN_LENGTH_ALERTS.md` — if any rule markdown is flagged **OVER_LIMIT**, trim it before proceeding.
 6. **State your plan**: Name your approach and which rules apply. If routing, name the worker and why.
 
 If you skip this checklist, you are operating without rules. There is no exception.
@@ -75,7 +75,7 @@ For end-to-end feature work (research → plan → code → validate → publish
 The coordinator handles multi-hop chains automatically when you specify a comma-separated worker chain (e.g. `architect,developer`). The Meta-Orchestrator's role: identify the worker sequence and describe in the task brief what each hop must produce for the next. For each hop after the first, explicitly instruct it to read the prior hop's output — the path is available in hop context but workers will not read it unless told to. The coordinator sequences invocations, passes hop context forward, and runs per-hop acceptance checks.
 
 ## Ephemeral Task Log Protocol
-See `EPHEMERAL_TASK_LOG_PROTOCOL.md` at the repo root. Create `logs/active_task_log.md` when a session involves 3+ sequential or dependent tasks (including non-worker batches, e.g. running the same folder protocol across multiple pending inputs) — not just single tasks or ad hoc questions. Update it after each task closes; once every task is closed and no owner items are outstanding, copy it to `output/intermediate_outputs/<topic>/closed_task_log_<short-name>.md` with an Outcome note, then remove it from `logs/` (never delete it without that copy). Never commit it.
+See `logs/EPHEMERAL_TASK_LOG_PROTOCOL.md`. Create `logs/active_task_log.md` when a session involves 3+ sequential or dependent tasks (including non-worker batches, e.g. running the same folder protocol across multiple pending inputs) — not just single tasks or ad hoc questions. Update it after each task closes; once every task is closed and no owner items are outstanding, copy it to `output/intermediate_outputs/<topic>/closed_task_log_<short-name>.md` with an Outcome note, then remove it from `logs/` (never delete it without that copy). Never commit it.
 
 ## Infrastructure Rules
 - Use `uv` for all Python environments (no bare `pip install`, no `venv` manually).
@@ -107,10 +107,10 @@ Canonical requirements for every worker `CLAUDE.md` are in `workers/WORKER_STAND
 
 ## Verification Protocol
 - **Dry Run**: Explain system impact before changing or registering a tool.
-- **Audit Trail**: Log server creation/audits in `TOOL_LOG.md` (Created, Audited) and the full change history in `logs/[server].md` (Created, Updated, Audited). Log worker gap fixes in `logs/worker_updates.md`. Update the Servers table in `TOOL_LOG.md` when registering or auditing a server. Use full timestamps (`YYYY-MM-DD HH:MM:SS`).
+- **Audit Trail**: Log server creation/audits in `logs/TOOL_LOG.md` (Created, Audited) and the full change history in `logs/[server].md` (Created, Updated, Audited). Log worker gap fixes in `logs/worker_updates.md`. Update the Servers table in `logs/TOOL_LOG.md` when registering or auditing a server. Use full timestamps (`YYYY-MM-DD HH:MM:SS`).
 
 ## Server Freshness Protocol
-Triggered when a server's most recent `TOOL_LOG.md` Audited timestamp (or Created if never audited) is >30 days old.
+Triggered when a server's most recent `logs/TOOL_LOG.md` Audited timestamp (or Created if never audited) is >30 days old.
 1. **Notify**: Tell the user which servers are stale.
 2. **Fetch**: Route to Developer: *"Fetch fastmcp docs → `../../servers/kb/kb_fastmcp.md`."* Read before proceeding.
 3. **Read/Compare**: Read stale `server.py` files. Identify deprecated patterns or renamed APIs.

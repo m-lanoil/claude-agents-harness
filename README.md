@@ -6,7 +6,7 @@
 
 A Claude Code harness. A root `CLAUDE.md` makes the main session a Meta-Orchestrator that classifies a task, drafts a task brief, and routes it to one of five workers (Developer, Architect, Content, Researcher, Scout). The workers are backed by three local MCP servers: `docs_fetcher` (fetch and cache documentation), `system_monitor` (read-only system stats) and `web_search` (Brave Search API, scout only) (`CLAUDE.md`, `servers/`). The rules are plain markdown. A coordinator program and a 5-phase pipeline sit alongside; both are built but not currently used, and are kept for future buildouts (`coordinator/README.md`, `pipeline/PIPELINE.md`).
 
-The repo is a **template**. Runtime state is gitignored: `TOOL_LOG.md`, `logs/*`, `kb/`, `sandbox/`, `output/*`, `pipeline/runs/`, `.mcp.json`, `.claude/*`, the docs_fetcher source registries and routing prompts (`.gitignore`). Tracked onboarding files are the `*_TEMPLATE.*` and `*.template.json` files.
+The repo is a **template**. Runtime state is gitignored: `logs/*` (except templates and the task-log protocol), `kb/`, `sandbox/`, `output/*`, `pipeline/runs/`, `.mcp.json`, `.claude/*`, the docs_fetcher source registries and routing prompts (`.gitignore`). Tracked onboarding files are the `*_TEMPLATE.*` and `*.template.json` files.
 
 ## Who it's for
 
@@ -68,7 +68,7 @@ Setup is derived only from the templates, `servers/*/pyproject.toml` and `CLAUDE
 2. Copy `.mcp.template.json` to `.mcp.json` and replace `<YOUR_PROJECT_ROOT>` with the absolute repo path. It registers `system_monitor` and `docs_fetcher` over stdio via `uv`. (Target filename `.mcp.json` follows `.gitignore`; unverified.)
 3. Copy `.claude/settings.template.json` to `.claude/settings.json` (SessionStart health-check and CLAUDE.md-reminder hooks; replace the same placeholder) and `.claude/settings.local.template.json` to `.claude/settings.local.json` (enables both servers). (Target filenames unverified.)
 4. Copy the three `servers/docs_fetcher/*.template.json` files to `libraries.json`, `clis.json`, `other_sources.json` and fill them with the documentation URLs workers may fetch. `WORKER_STANDARDS.md` says these files are gitignored and may be absent, and says to create one as `{}` if missing.
-5. Optional runtime logs: `TOOL_LOG_TEMPLATE.md`, `KB_STALENESS_LOG_TEMPLATE.md`, `SERVER_FRESHNESS_ALERTS_TEMPLATE.md`, `MARKDOWN_LENGTH_ALERTS.TEMPLATE.md` and `logs/*_TEMPLATE.md` are blank examples of the gitignored logs. (Whether to copy them is unverified; the scripts create their own alert files.)
+5. Optional runtime logs: the `logs/*TEMPLATE*` files are blank examples of the gitignored logs. (Whether to copy them is unverified; the scripts create their own alert files.)
 6. Whether `uv` installs server dependencies automatically on first run, or needs a separate sync, is not stated in tracked files (unverified). `uv.lock` files are present for both servers.
 7. Per worker: copy `workers/<worker>/.claude/settings.local.template.json` to `settings.local.json` in the same folder for architect, content, developer, researcher and scout, and replace `<YOUR_PROJECT_ROOT>` with the absolute repo path (the `Read(/<YOUR_PROJECT_ROOT>/**)` entries then start with `//`). Each template enables only the servers that worker is assigned in `CLAUDE.md`. (Target filenames unverified.)
    Scout only (optional): copy `workers/scout/.mcp.template.json` to `workers/scout/.mcp.json`, replace `<YOUR_PROJECT_ROOT>`, and export `BRAVE_SEARCH_API_KEY`. The root `.mcp.template.json` intentionally has no `web_search`. (Key delivery to the server is unverified; no live Brave call has been made.)
@@ -77,7 +77,7 @@ Setup is derived only from the templates, `servers/*/pyproject.toml` and `CLAUDE
 ## Current state
 
 Components and what each is (details and maturity signals in [`STATUS.md`](STATUS.md)):
-- Meta-Orchestrator rules and protocols: `CLAUDE.md`, `workers/*_PROTOCOL.md`, `workers/WORKER_STANDARDS.md`, `EPHEMERAL_TASK_LOG_PROTOCOL.md`, `servers/TOOL_BUILDING_LOOP.md`.
+- Meta-Orchestrator rules and protocols: `CLAUDE.md`, `workers/*_PROTOCOL.md`, `workers/WORKER_STANDARDS.md`, `logs/EPHEMERAL_TASK_LOG_PROTOCOL.md`, `servers/TOOL_BUILDING_LOOP.md`.
 - Five workers: `workers/{developer,architect,content,researcher,scout}/CLAUDE.md`.
 - Three MCP servers with lockfiles: `servers/docs_fetcher/`, `servers/system_monitor/`, `servers/web_search/` (plus two SessionStart hook scripts).
 - Research report format: `workers/RESEARCH_REPORT_PROTOCOL.md`.
@@ -130,7 +130,7 @@ Coordinator mode is currently disabled. A standing override, "active since 2026-
 
 ### Why template-plus-local-state
 
-The tracked repo holds rules, code and blank templates. Runtime state is gitignored: `kb/`, `sandbox/`, `output/*`, `logs/*`, `TOOL_LOG.md`, the staleness and alert logs, `.mcp.json`, `.claude/*`, `pipeline/runs/`, the docs_fetcher registries, routing prompts and `human-retrieved-sources/` (`.gitignore`). Templates (`*_TEMPLATE.*`, `*.template.json`) are tracked as the onboarding path.
+The tracked repo holds rules, code and blank templates. Runtime state is gitignored: `kb/`, `sandbox/`, `output/*`, `logs/*`, `.mcp.json`, `.claude/*`, `pipeline/runs/`, the docs_fetcher registries, routing prompts and `human-retrieved-sources/` (`.gitignore`). Templates (`*_TEMPLATE.*`, `*.template.json`) are tracked as the onboarding path.
 
 The history shows this was a deliberate reset: a full working-state archive (306bf88), then a "template branch: architecture only" (20ea7aa), then untracking of logs (4f3e92a, c44b26f). Inferred from `.gitignore` and those messages: the state holds per-user paths, fetched third-party documentation and personal source lists that should not be published, so the structure is shared and the content is not. `TASTE.md` and `pipeline/PIPELINE.md` (Bootstrapping) also treat the rule set as copyable into another repo.
 

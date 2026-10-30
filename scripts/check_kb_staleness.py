@@ -6,7 +6,7 @@ from pathlib import Path
 import subprocess
 
 PROJECT_ROOT = Path(__file__).parent.parent
-KB_LOG = PROJECT_ROOT / "KB_STALENESS_LOG.md"
+KB_LOG = PROJECT_ROOT / "logs/KB_STALENESS_LOG.md"
 STALE_DAYS = 30
 TODAY = date.today()
 

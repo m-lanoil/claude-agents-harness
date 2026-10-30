@@ -6,8 +6,8 @@ from pathlib import Path
 import subprocess
 
 PROJECT_ROOT = Path(__file__).parent.parent
-TOOL_LOG = PROJECT_ROOT / "TOOL_LOG.md"
-ALERTS_FILE = PROJECT_ROOT / "SERVER_FRESHNESS_ALERTS.md"
+TOOL_LOG = PROJECT_ROOT / "logs/TOOL_LOG.md"
+ALERTS_FILE = PROJECT_ROOT / "logs/SERVER_FRESHNESS_ALERTS.md"
 STALE_DAYS = 30
 TODAY = date.today()
 

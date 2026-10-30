@@ -3,7 +3,7 @@
 Run these steps in order when creating or extending a server.
 
 1. **Identify**: "I need a tool for [X]."
-2. **Extend or Create**: Fit into an existing server if possible. Extensions need the same approval and Dry Run as new servers. Extensions logged in **Updated** in `logs/[server].md`; new servers in **Created** in both `TOOL_LOG.md` and `logs/[server].md`.
+2. **Extend or Create**: Fit into an existing server if possible. Extensions need the same approval and Dry Run as new servers. Extensions logged in **Updated** in `logs/[server].md`; new servers in **Created** in both `logs/TOOL_LOG.md` and `logs/[server].md`.
 3. **Scaffold** *(new only)*: `mkdir -p servers/[name] && cd servers/[name] && uv init --no-readme && rm -f main.py && uv add fastmcp`
 4. **Code**: Run the **Server Code Grounding Protocol** below before writing `server.py`.
 5. **Register** *(new only)*: `claude mcp add --scope project [name] -- uv --project /full/path/to/servers/[name] run /full/path/to/servers/[name]/server.py`
