@@ -224,10 +224,14 @@ output/*
 !output/.gitkeep
 !output/final_outputs/
 !output/intermediate_outputs/
+!output/archive/
 output/final_outputs/*
 !output/final_outputs/.gitkeep
 output/intermediate_outputs/*
 !output/intermediate_outputs/.gitkeep
+output/archive/*
+!output/archive/.gitkeep
+!output/archive/ARCHIVED_TEMPLATE.md
 .mcp.json
 .claude/*
 !.claude/*.template.json
