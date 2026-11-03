@@ -77,7 +77,7 @@ Field values: Task type is research brief, comparison, presentation or case stud
 
 Entries are added by the repo owner, or by the Meta-Orchestrator with the owner's explicit approval, and must be sanitized of client details. A hop-close step should propose an entry.
 
-Revisit trigger: when this log reaches 10 entries (9 so far), revisit question 3 (comparison with what exists) in [`docs/PROBLEM_INVESTIGATION.md`](docs/PROBLEM_INVESTIGATION.md), and add together: tracked tests (start with `servers/docs_fetcher/`), cost and latency tracking (decide the log field then), rule-compliance enforcement, and baseline evals.
+Revisit trigger: when this log reaches 10 entries (9 so far), compare against what exists (start with `docs_fetcher` versus built-in doc fetching), and add together: tracked tests (start with `servers/docs_fetcher/`), cost and latency tracking (decide the log field then), rule-compliance enforcement, and baseline evals.
 
 ## Last reviewed
 

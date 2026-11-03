@@ -1,6 +1,10 @@
 # claude_agents
 
+## Purpose
 
+The harness exists to let an LLM do knowledge work (research briefs, technology and vendor comparisons, presentations, code from library docs) while keeping the output grounded in fetched sources rather than training data. Workers fetch only approved sources, report what could not be fetched, and end each deliverable with a self-critique that lists unsupported claims. The aim is to make ungrounded claims visible, not to prevent them. The operator still decides which sources to trust and whether the output is good enough to use, and remains the main safeguard. These properties are instructions to the model, not enforced checks.
+
+Whether this beats plain Claude, or doing the work by hand, is not yet evidenced. See [`STATUS.md`](STATUS.md) for what is and is not shown.
 
 ## What this is
 
