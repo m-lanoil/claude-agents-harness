@@ -53,6 +53,7 @@
 - The five-phase pipeline is built but unused: `pipeline/runs/` has no runs, so its phases, run-contract checker and human-verdict gate have no evidence from real use. Kept for future buildouts (`pipeline/PIPELINE.md`, `scripts/check_pipeline_run.py`).
 - Enforcement is instruction-level. Test isolation in the pipeline is a rule unless the owner adds a `Read(pipeline/runs/**/holdback/**)` deny rule (`pipeline/PIPELINE.md`).
 - Workers can fetch only registered or briefed URLs; a failed fetch stops the task for a human decision (`workers/WORKER_STANDARDS.md`).
+- `docs_fetcher` returns cleaned text without link targets (Track-record entries dated 2026-10-19, 2026-10-26 and 2026-11-02). A live comparison on 2026-11-07 (Claude Code 2.1.319, one fetch per URL, owner-run, local notes not tracked) found built-in WebFetch kept link URLs on a Markdown-serving page; HTML-only pages were not tested. The owner kept `docs_fetcher` as is.
 - Developer does not self-execute scripts unless the brief says so, and writes only under `sandbox/`, `kb/`, `human-retrieved-sources/` and `../../output/` (`workers/developer/CLAUDE.md`).
 - The scout and `web_search` chain has never run live: the Brave key, the scout's deny rules on built-in tools, and key delivery in coordinator mode are unverified, and the Researcher's report mode has no real run (`workers/scout/CLAUDE.md`, `workers/RESEARCH_REPORT_PROTOCOL.md`).
 - Runtime state is local-only: a fresh clone has no kb, logs, outputs, registries, MCP config or hooks until set up from templates (`.gitignore`).
