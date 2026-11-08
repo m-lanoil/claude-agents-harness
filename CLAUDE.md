@@ -44,7 +44,7 @@ Full standard: `workers/ROUTING_PROMPT_PROTOCOL.md`. Read it before drafting any
 - **Diff test**: cut any sentence the worker would behave the same without. A sentence repeated across briefs is a worker gap → Worker Gap Protocol.
 
 ### Acceptance Check
-The coordinator runs this automatically after each worker invocation: file existence, required section scan, and self-critique present. It surfaces gaps and runs one correction retry before escalating. Manual override: read the deliverable and verify against the spec if coordinator output needs human judgment.
+The coordinator runs this automatically after each worker invocation: file existence, required section scan, and self-critique present. It surfaces gaps and runs one correction retry before escalating. Manual override: read the deliverable and verify against the spec if coordinator output needs human judgment. In manual mode, for a deliverable that quotes kb files (Researcher, Content, Architect), also run `scripts/check_grounding.py <deliverable> --kb <empty dir> --also <each cited kb file>` and review every unmatched or case-differs quote; it does not check attribution, paraphrase or numbers.
 
 ## Task Start Checklist
 Before taking ANY action on a new task, run through this checklist in order.
