@@ -51,7 +51,7 @@ Applies to any task requiring code or embedded shell command strings.
    This file is the **sole knowledge base** for the task. Training data must not supplement it.
    - kb files contain only scraped documentation — raw API references, field names, return types. No design decisions, task reasoning, or grounding citations.
 3. **Reference only the markdown**: All code decisions must trace to `./kb/kb_[topic].md`. If the answer isn't there, fetch more.
-4. **Import audit**: After writing code, verify every import and shell command traces to a kb file. Fetch and update if anything is ungrounded.
+4. **Import audit**: After writing code, verify every import and shell command traces to a kb file. Run `python3 ../../scripts/check_imports.py ./sandbox/<project_name> --kb ./kb --alias ../../scripts/import_kb_aliases.cfg`, and resolve every MISSING or STALE line by fetching (standard-library docs are always approved) or flag it in self-critique. The script does not check shell command strings; verify those yourself. Fetch and update if anything is ungrounded.
 5. **Cite your grounding**: Tell the user which decisions came from which kb file.
    - **No agent artifacts in code**: Never embed `kb_*.md` references, grounding notes, internal paths, run commands, or orchestration metadata in code comments or docstrings — code must be clean of all agent-internal context.
 6. **Keep the markdown**: Do not delete kb files. Ensure `fetched:` date is current before finishing.
@@ -80,13 +80,13 @@ sandbox/<project_name>/
 - **Intermediate artifacts** (PNGs, CSVs, working files): `Path(__file__).parent / "output"`, call `.mkdir(exist_ok=True)`.
 - **Final deliverables** (PDFs, structured outputs for the user): write to `../../output/` (project root `output/` directory).
 - **Archiving**: Owner-triggered only; never archive on your own. Completed projects move (never delete) to `../../output/archive/developer-sandbox/sandbox/<project_name>/`, with an `ARCHIVED.md` (date, reason, contents, original path) beside them. Keep the empty `./sandbox/`.
-- **Do not self-execute scripts**: Provide the run command in the deliverable. Only run if the task brief explicitly instructs it.
+- **Do not self-execute scripts**: Provide the run command in the deliverable. Only run if the task brief explicitly instructs it. The read-only import audit above is always allowed.
 - **Data source**: Use the data source specified in the task brief. If not specified, default to synthetic data and flag this assumption in self-critique.
 
 ## Security & Safety Constraints
 - **Human-in-the-Loop**: Confirm before executing any command that deletes files or modifies system-level configurations.
 - **Read-Only Default**: When using system tools (CPU, disk, network), prioritize read-only access. Do not create write or delete capabilities unless explicitly requested.
-- **Sandboxing**: File operations restricted to `./sandbox/`, `./kb/`, `./human-retrieved-sources/`, and `../../output/`. All work in `./sandbox/<project_name>/`; each script in its own subfolder with its own `output/`; final deliverables (PDFs, structured outputs for the user) go in `../../output/`. No writes elsewhere, except `../../servers/kb/kb_[library].md` files the task brief names as targets (Server Code Grounding Protocol).
+- **Sandboxing**: File operations restricted to `./sandbox/`, `./kb/`, `./human-retrieved-sources/`, and `../../output/`. All work in `./sandbox/<project_name>/`; each script in its own subfolder with its own `output/`; final deliverables (PDFs, structured outputs for the user) go in `../../output/`. No writes elsewhere, except `../../servers/kb/kb_[library].md` files the task brief names as targets (Server Code Grounding Protocol). Read-only: `../../scripts/check_imports.py` and `../../scripts/import_kb_aliases.cfg`.
 - **Dependency Check**: Before running `uv add` or `pip install`, verify the package is well-known and relevant. No obfuscated or suspicious packages.
 
 ## ML Tasks
