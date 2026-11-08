@@ -31,7 +31,7 @@ Until then, do not recommend Coordinator.
    the output against what manual mode would have produced, and accepts it with no more corrections than
    the manual baseline.
 5. **Fallback intact:** a failed coordinator run can be continued in Manual mode from its hop files.
-6. **Tests:** `coordinator/` has tracked tests (part of the 10-entry batch in `STATUS.md`).
+6. **Tests:** `coordinator/` has tracked tests (the 10-entry revisit in `STATUS.md` has run; coordinator tests are not yet written).
 
 ## Coordinator mode — use when all of these hold
 - Spec is complete and self-contained: worker needs no mid-task clarification
