@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The harness exists to let an LLM do knowledge work (research briefs, technology and vendor comparisons, presentations, code from library docs) while keeping the output grounded in fetched sources rather than training data. Workers fetch only approved sources, report what could not be fetched, and end each deliverable with a self-critique that lists unsupported claims. The aim is to make ungrounded claims visible, not to prevent them. The operator still decides which sources to trust and whether the output is good enough to use, and remains the main safeguard. These properties are instructions to the model, not enforced checks.
+The harness exists to let an LLM do knowledge work (research briefs, technology and vendor comparisons, presentations, code from library docs) while keeping the output grounded in fetched sources rather than training data. Workers fetch only approved sources, report what could not be fetched, and end each deliverable with a self-critique that lists unsupported claims. The aim is to make ungrounded claims visible, not to prevent them. The operator still decides which sources to trust and whether the output is good enough to use, and remains the main safeguard. Grounding properties are instructions to the model, not enforced checks; some write and Bash limits are enforced by settings (see [`STATUS.md`](STATUS.md)).
 
 Whether this beats plain Claude, or doing the work by hand, is not yet evidenced. See [`STATUS.md`](STATUS.md) for what is and is not shown.
 
@@ -20,7 +20,7 @@ The repo is a **template**. Runtime state is gitignored: `logs/*` (except templa
 
 ## Fit for purpose
 
-This section is derived from the rules in the tracked files. It is not a claim about observed results (see Evidence and track record). Grounding, sandboxing and staleness limits are instructions to the model, not enforced mechanisms.
+This section is derived from the rules in the tracked files. It is not a claim about observed results (see Evidence and track record). Grounding and staleness limits are instructions to the model; write paths and worker Bash are partly enforced by settings (`STATUS.md`).
 
 ### Good fit
 - Work where claims must trace to sources. Developer, Architect, Content and Researcher all require deliverables to trace to fetched kb files, and failed fetches must be reported (`workers/WORKER_STANDARDS.md`, `workers/*/CLAUDE.md`).
@@ -32,7 +32,7 @@ This section is derived from the rules in the tracked files. It is not a claim a
 - Quick one-off edits. Every task starts with a six-step checklist, and code needs a kb file per import and shell command (<=30 days old) before any code is written (`CLAUDE.md`, `workers/developer/CLAUDE.md`). That is the process-overhead cost.
 - Fully unattended runs. Prompt approval, gap acknowledgment and correction-retry gates always pause for a human (`coordinator/README.md`), and coordinator mode is currently disabled (`workers/MODE_SELECTION_PROTOCOL.md`).
 - Work that needs unregistered URLs on the fly. Workers may fetch only registered or briefed URLs and must flag others (`workers/WORKER_STANDARDS.md`).
-- Anyone who needs results on day one. No outcome data is tracked (see `STATUS.md`).
+- Anyone who needs results on day one. Only a small owner-reported log exists (see `STATUS.md`).
 
 ## How it works
 
@@ -74,7 +74,7 @@ Setup is derived only from the templates, `servers/*/pyproject.toml` and `CLAUDE
 4. Copy the three `servers/docs_fetcher/*.template.json` files to `libraries.json`, `clis.json`, `other_sources.json` and fill them with the documentation URLs workers may fetch. `WORKER_STANDARDS.md` says these files are gitignored and may be absent, and says to create one as `{}` if missing.
 5. Optional runtime logs: the `logs/*TEMPLATE*` files are blank examples of the gitignored logs. (Whether to copy them is unverified; the scripts create their own alert files.)
 6. Whether `uv` installs server dependencies automatically on first run, or needs a separate sync, is not stated in tracked files (unverified). `uv.lock` files are present for both servers.
-7. Per worker: copy `workers/<worker>/.claude/settings.local.template.json` to `settings.local.json` in the same folder for architect, content, developer, researcher and scout, and replace `<YOUR_PROJECT_ROOT>` with the absolute repo path (the `Read(/<YOUR_PROJECT_ROOT>/**)` entries then start with `//`). Each template enables only the servers that worker is assigned in `CLAUDE.md`. (Target filenames unverified.)
+7. Per worker: copy `workers/<worker>/.claude/settings.local.template.json` to `settings.local.json` in the same folder for architect, content, developer, researcher and scout, and replace `<YOUR_PROJECT_ROOT>` with the absolute repo path (the `Read(/<YOUR_PROJECT_ROOT>/**)` entries then start with `//`). Each template enables only the servers that worker is assigned in `CLAUDE.md`. (Target filenames unverified.) The templates carry write-path deny rules for protected repo paths and sandboxed Bash for the four workers that have Bash (verified live 2026-11-07; limits in `STATUS.md`). `uv run` and network access from worker Bash are blocked unless a task adds them. When a brief sets a fetch budget, launch the worker with `DOCS_FETCHER_MAX_URLS=<N> claude` (`CLAUDE.md`).
    Scout only (optional): copy `workers/scout/.mcp.template.json` to `workers/scout/.mcp.json`, replace `<YOUR_PROJECT_ROOT>`, and export `BRAVE_SEARCH_API_KEY`. The root `.mcp.template.json` intentionally has no `web_search`. (Key delivery to the server is unverified; no live Brave call has been made.)
 8. Start Claude Code at the repo root. The `scripts/check_*.py` checks are described as weekly cron jobs in `CLAUDE.md`; the cron setup itself is not tracked (unverified), so run the scripts by hand if you have not scheduled them. The SessionStart hooks come from `.claude/settings.json` (step 3).
 
@@ -87,20 +87,23 @@ Components and what each is (details and maturity signals in [`STATUS.md`](STATU
 - Research report format: `workers/RESEARCH_REPORT_PROTOCOL.md`.
 - Coordinator program (five modules, disabled by standing override): `coordinator/`.
 - Pipeline (five phase files and a run-contract checker; unused, kept for future buildouts): `pipeline/`, `scripts/check_pipeline_run.py`.
-- Maintenance scripts: KB staleness, server freshness, markdown length (<=100 non-empty lines for rule files), pipeline run check: `scripts/`.
+- Maintenance scripts: KB staleness, server freshness, markdown length (<=100 non-empty lines for rule files), pipeline run check, grounding quote checker, import-versus-kb checker (the last two have tests): `scripts/`.
+- Tests: offline pytest suite for `docs_fetcher` (`servers/docs_fetcher/tests/`) and checker tests (`scripts/tests/`).
+- Baseline eval protocol: `workers/BASELINE_EVAL_PROTOCOL.md`.
 - `TASTE.md`: standing preferences read by pipeline phases.
 
 ## Evidence and track record
 
-What the tracked repo can show: the build-out timeline in `git log`, 58 commits from 2026-03-30 (e1ed54c) to 2026-10-14 (528b48c).
+What the tracked repo can show: the build-out timeline in `git log`, 99 commits from 2026-03-30 (e1ed54c) to 2026-11-07 (6b9261d).
 - 2026-03-30 to 2026-04-06: initial structure with the `docs_fetcher` server, then `system_monitor` and the CLI/other-sources registries (4497270, 0b92a2f, b4c1a4b, per commit messages).
 - 2026-05-11 to 2026-05-15: worker standards extracted into a shared file (3da531f), a template-only branch initialized (20ea7aa), and runtime logs untracked (4f3e92a, c44b26f), all per commit messages.
 - 2026-06-16 to 2026-06-29: bug-fix, documentation and context-intake protocols (00c0e53); Agent SDK coordinator and two-mode architecture (084eb28, 6d8df9f), per commit messages.
 - 2026-07-08 to 2026-07-23: five-phase pipeline, taste config and run checker (beea21f, 71b9b42, 1f48d9b), per commit messages.
 - 2026-08-28 to 2026-09-28: ephemeral task log (70781a8), human-retrieved-sources protocol (3d96d6b), coordinator mode disabled and manual-mode handoff archiving required (aa8e3e6), `docs_fetcher` fixes (5247a95), per commit messages.
 - 2026-10-06 to 2026-10-14: README and STATUS added (e5e73fc), read-only annotations on MCP tools (8aee2eb), track-record fields and owner-triggered archive protocol (1ded804, 528b48c), per commit messages.
+- 2026-10-22 to 2026-11-07: scout and `web_search` (b4783ab), routing prompt standard (66a4c3b), per-worker settings templates (76c0f99), `logs/` reorganized (aa5159d), then `docs_fetcher` tests (48375ae), `check_grounding.py` (81f7323), baseline eval protocol (a3e3343), `check_imports.py` (1ac02a9), fetch-cap gate (06e33f9), write-path deny rules (d1533b1), Markdown fix (24b9a39), sandboxed Bash (fa28be8), per commit messages.
 
-What it cannot show: the history includes a commit titled "Archive full working state: outputs, all kb files, and sandbox scripts" (306bf88), later followed by a template-only reset (20ea7aa), but the current tracked tree contains no outputs, logs, kb files or run artifacts. No task outcomes, success rates, or cost/time per task are evidenced in tracked files. Nothing here should be read as a claim that the harness works well on real tasks; see "Not yet evidenced" in [`STATUS.md`](STATUS.md).
+What it cannot show: the history includes a commit titled "Archive full working state: outputs, all kb files, and sandbox scripts" (306bf88), later followed by a template-only reset (20ea7aa), but the current tracked tree contains no outputs, logs, kb files or run artifacts. `STATUS.md` holds a Track-record log of 16 owner-reported, sanitized entries that cannot be re-checked from the repo. Success rates and cost per task are not evidenced; owner time is recorded only from 2026-11-07. Nothing here should be read as a claim that the harness works well on real tasks; see "Not yet evidenced" in [`STATUS.md`](STATUS.md).
 
 ## Design rationale
 
@@ -111,11 +114,11 @@ The root `CLAUDE.md` gives the main session one job: classify, route and build i
 
 What the split buys:
 - **Narrow tool surface.** Only Developer gets `system_monitor`; only Scout gets `web_search`; the other three get `docs_fetcher` only (`CLAUDE.md` Workers table; `coordinator/worker_registry.py`, `_WORKER_MCP_NAMES`). The building loop says to "err toward fewer tools" (`workers/WORKER_BUILDING_LOOP.md`, step 3).
-- **Scoped writes (by instruction).** Each worker is instructed to write only to its own `kb/`, `human-retrieved-sources/` and `../../output/`; Developer also has `sandbox/` (`workers/WORKER_STANDARDS.md` item 5). The coordinator runs each worker with its own directory as `cwd` so that worker's `CLAUDE.md` loads (`coordinator/README.md`, CLAUDE.md loading).
+- **Scoped writes (instruction plus settings).** Each worker is instructed to write only to its own `kb/`, `human-retrieved-sources/` and `../../output/`; Developer also has `sandbox/` (`workers/WORKER_STANDARDS.md` item 5). Settings templates also deny writes to protected repo paths (`STATUS.md`). The coordinator runs each worker with its own directory as `cwd` so that worker's `CLAUDE.md` loads (`coordinator/README.md`, CLAUDE.md loading).
 - **One place for shared rules.** Common rules live in `workers/WORKER_STANDARDS.md`; worker files hold only mandate-specific content. Commit 3da531f describes this refactor, and `workers/WORKER_GAP_PROTOCOL.md` routes fixes to the shared file first.
 - **No cross-worker prompt writing.** Workers state the next hand-off and stop; only the orchestrator drafts routing prompts (`workers/WORKER_STANDARDS.md`, Handoff Rule). Inferred from that rule: this keeps classification and the audit trail in one place.
 
-The sandbox is a rule, not a mechanism. The coordinator gives workers `Write` with `permission_mode="acceptEdits"` (`coordinator/worker_registry.py`); the directory limits come from `cwd` and the worker's `CLAUDE.md` text.
+Scoping is mostly a rule, with exceptions. Each worker's settings template denies writes to protected repo paths and enables sandboxed Bash for the four workers that have Bash, verified live 2026-11-07. The built-in file tools, MCP tools and hooks are outside the sandbox. The coordinator gives workers `Write` with `permission_mode="acceptEdits"` (`coordinator/worker_registry.py`); its directory limits come from `cwd` and the worker's `CLAUDE.md` text.
 
 ### Why human gates
 
@@ -142,13 +145,13 @@ The history shows this was a deliberate reset: a full working-state archive (306
 
 - **Process overhead.** Every task runs a six-step checklist, and Developer may not write code until each import and shell command has a kb file at most 30 days old (`CLAUDE.md`; `workers/developer/CLAUDE.md`). Small edits pay the same cost as large ones.
 - **KB maintenance.** Each kb file carries a 30-day staleness rule, and weekly scripts report it (`workers/WORKER_STANDARDS.md`; `CLAUDE.md` steps 4-5). The cache is gitignored, so it must be rebuilt on a new machine.
-- **Instruction-level enforcement.** Grounding, sandboxing and staleness are rules the model follows, not checks that run. `pipeline/PIPELINE.md` says test isolation is instruction-level unless the owner adds a deny rule. No tracked script audits worker compliance.
+- **Instruction-level enforcement.** Grounding and staleness are rules the model follows; `check_grounding.py` and `check_imports.py` check quotes and imports only when run at acceptance. Write denies, sandboxed Bash and the fetch cap are enforced (`STATUS.md`). `pipeline/PIPELINE.md` says test isolation is instruction-level unless the owner adds a deny rule.
 - **Single-operator assumption.** The approval gates, local-only logs and manual session hand-off assume one person doing the routing. Inferred from `.gitignore`, `CLAUDE.md` and `coordinator/README.md`: nothing covers concurrent operators or shared state.
 - **Manual mode cost.** With the coordinator disabled, each hop needs the user to open a worker session and read a prompt file, and the hop record is created by hand (`CLAUDE.md`).
 - **Markdown cap.** Rule files are limited to 100 non-empty lines (`TASTE.md`; `scripts/check_markdown_length.py`). This keeps rules readable but forces detail into separate protocol files, which adds the cost of finding them.
 - **Instruction drift.** Rules live in prose across about 30 tracked markdown files, and the same rule is sometimes repeated. The history includes trims (c638a1a) and a cleanup of agent artifacts (d432e69).
-- **Open decisions the design does not settle.** Whether to re-enable coordinator mode and on what criteria; whether to add a hard deny rule for pipeline test isolation; whether compliance with the grounding rules should be checked by a script.
+- **Open decisions the design does not settle.** Whether to re-enable coordinator mode and on what criteria; whether to add a hard deny rule for pipeline test isolation (worker write paths already have one); whether the grounding checks should run automatically instead of by hand.
 
 ### What the design does not establish
 
-This section explains why the repo is built this way. It is not evidence that the design works: no outcomes, logs or run artifacts are tracked, and several rationales above are inferred. See [`STATUS.md`](STATUS.md) for what is and is not evidenced.
+This section explains why the repo is built this way. It is not evidence that the design works: no run artifacts are tracked and the Track-record log is owner-reported, and several rationales above are inferred. See [`STATUS.md`](STATUS.md) for what is and is not evidenced.

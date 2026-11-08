@@ -8,17 +8,17 @@
 |---|---|---|---|
 | Meta-Orchestrator rules | `CLAUDE.md` | Routing, checklist, output and security rules for the main session | Edited across the history (`git log`); length-checked by `scripts/check_markdown_length.py`; no tracked check that its rules are followed |
 | Shared worker standards | `workers/WORKER_STANDARDS.md`, `workers/*_PROTOCOL.md`, `workers/WORKER_BUILDING_LOOP.md` | Security baseline and process rules every worker reads | Extracted into one file in 3da531f (per commit message); gap-fix procedure defined in `WORKER_GAP_PROTOCOL.md` |
-| Developer worker | `workers/developer/` | Grounded code, sandbox scripts, ML, system checks, technical docs | Has `CLAUDE.md` plus bug-fix protocol and ML output convention |
-| Architect worker | `workers/architect/CLAUDE.md` | Technology and architecture proposals, no code | `CLAUDE.md` only |
-| Content worker | `workers/content/CLAUDE.md` | Research-grounded written deliverables, review | `CLAUDE.md` only; `.gitignore` reserves `workers/content/memory/` |
-| Researcher worker | `workers/researcher/CLAUDE.md`, `workers/RESEARCH_REPORT_PROTOCOL.md` | Pre-task planning docs; research reports from owner-approved sources (report mode) | `CLAUDE.md` plus report protocol; report mode has never run on a real task |
+| Developer worker | `workers/developer/` | Grounded code, sandbox scripts, ML, system checks, technical docs | Has `CLAUDE.md` plus bug-fix protocol and ML output convention; settings template with write-path denies and sandboxed Bash (verified live 2026-11-07) |
+| Architect worker | `workers/architect/CLAUDE.md` | Technology and architecture proposals, no code | `CLAUDE.md` only; settings template with write-path denies and sandboxed Bash (verified live 2026-11-07) |
+| Content worker | `workers/content/CLAUDE.md` | Research-grounded written deliverables, review | `CLAUDE.md` only; `.gitignore` reserves `workers/content/memory/`; settings template with write-path denies and sandboxed Bash (verified live 2026-11-07) |
+| Researcher worker | `workers/researcher/CLAUDE.md`, `workers/RESEARCH_REPORT_PROTOCOL.md` | Pre-task planning docs; research reports from owner-approved sources (report mode) | `CLAUDE.md` plus report protocol; report mode has never run on a real task; settings template with write-path denies and sandboxed Bash (verified live 2026-11-07) |
 | Scout worker | `workers/scout/CLAUDE.md` | Source discovery by web search for owner approval; no fetching | `CLAUDE.md` only; ran live in the 2026-10-22 Track-record task; whole-tool denies (WebFetch, WebSearch, Bash) and protected-path write denies verified live 2026-11-07 |
-| docs_fetcher server | `servers/docs_fetcher/` | 11 MCP tools: source registries, fetch, search, crawl, stats | 436-line `server.py`, `pyproject.toml`, `uv.lock`; fix commits 3d96d6b, 5247a95 (per commit messages); no tracked tests |
+| docs_fetcher server | `servers/docs_fetcher/` | 11 MCP tools: source registries, fetch, search, crawl, stats | 538-line `server.py`, `pyproject.toml`, `uv.lock`; 9 offline test files in `tests/` (174 passed on 2026-11-07); fetch cap via `DOCS_FETCHER_MAX_URLS` (06e33f9) and the Markdown/plain-text fix (24b9a39); fix commits 3d96d6b, 5247a95 (per commit messages) |
 | system_monitor server | `servers/system_monitor/` | 5 read-only MCP tools plus 2 SessionStart hook scripts | 146-line `server.py`, `pyproject.toml`, `uv.lock`; no tracked tests |
 | web_search server | `servers/web_search/` | 1 read-only MCP tool (Brave Search API), scout only | 94-line `server.py`, `pyproject.toml`, `uv.lock` (`fastmcp>=3.2.0,<4`); 29 offline checks and stdio startup without a key (per build log); no live Brave call; no tracked tests |
 | Coordinator | `coordinator/` | Agent SDK loop: hop sequencing, 3-part acceptance check, Validator, HITL gates | Five modules, README with flags; **disabled by standing override** in `workers/MODE_SELECTION_PROTOCOL.md`; no tracked tests |
 | Pipeline | `pipeline/` | Five phase files and a run-contract spec | Phase files and `scripts/check_pipeline_run.py` exist; backfill rule added in 71b9b42 (per commit message) |
-| Maintenance scripts | `scripts/` | KB staleness, server freshness, markdown length, pipeline run checks | Four scripts; weekly schedule stated in `CLAUDE.md`, cron entry not tracked |
+| Maintenance scripts | `scripts/` | KB staleness, server freshness, markdown length, pipeline run checks, grounding quote checker, import-versus-kb checker | Six scripts; tests for the grounding and import checkers in `scripts/tests/`; weekly schedule stated in `CLAUDE.md`, cron entry not tracked |
 | Onboarding templates | `*_TEMPLATE.*`, `*.template.json`, `logs/*TEMPLATE*` | Blank versions of gitignored runtime files | Present; the only tracked onboarding path (`.gitignore`) |
 | Taste config | `TASTE.md` | Standing preferences read by every pipeline phase | Some items marked *(default)* = unconfirmed assumptions |
 
@@ -34,16 +34,21 @@
 | A checker can verify a pipeline run's artifacts, ordering and the human gate | `scripts/check_pipeline_run.py` |
 | Five workers are defined | `workers/{developer,architect,content,researcher,scout}/CLAUDE.md` |
 | Runtime state is excluded from version control; templates are tracked | `.gitignore`, `*_TEMPLATE.*`, `*.template.json` |
-| Build-out history: 58 commits, 2026-03-30 to 2026-10-14 | `git log` (e1ed54c to 528b48c) |
+| Build-out history: 99 commits, 2026-03-30 to 2026-11-07 | `git log` (e1ed54c to 6b9261d) |
+| `docs_fetcher` has offline tests | 174 passed, `servers/docs_fetcher/tests/` |
+| Quote and import checkers exist with tests | `scripts/check_grounding.py`, `scripts/check_imports.py`, `scripts/tests/` |
+| Write denies and sandboxed Bash blocked test writes from the worker folders | Track-record entries dated 2026-11-07 |
+| Fetch cap refuses over-budget fetches | Owner-run live check, Track-record entry dated 2026-11-07 |
+| 16 owner-reported, sanitized task outcomes | Track-record log |
 
 ## Not yet evidenced
 
-- Outcomes of real tasks routed through any worker (no outputs, logs or run artifacts are tracked).
+- Outcomes beyond the 16 owner-reported Track-record entries; no outputs, logs or run artifacts are tracked, so entries cannot be re-checked from the repo.
 - Success, rejection or correction-retry rates for any worker or mode.
-- Cost, token use or elapsed time per task, and the overhead of the checklist and grounding rules.
+- Cost, token use or elapsed time per task, and the overhead of the checklist and grounding rules. Owner minutes are recorded only from 2026-11-07.
 - Any end-to-end pipeline run (phases 1 to 5) completing with `Human Verdict: APPROVED`.
 - That the coordinator or its Validator work on a real task (the code exists; no tracked tests or results).
-- That the grounding, staleness and sandbox rules are followed: no tracked script checks compliance.
+- That grounding and staleness rules are followed on every task: `check_grounding.py` and `check_imports.py` run only when invoked at acceptance. Write denies, the sandbox and the fetch cap are enforced; see Known limits.
 - That the weekly cron jobs are installed and running.
 - Fresh-clone setup success: the setup steps in `README.md` have not been run on a fresh clone.
 
@@ -86,8 +91,8 @@ Field values: Task type is research brief, comparison, presentation or case stud
 
 Entries are added by the repo owner, or by the Meta-Orchestrator with the owner's explicit approval, and must be sanitized of client details. A hop-close step should propose an entry.
 
-Revisit trigger: the 10-entry revisit ran on 2026-11-07. It compared `docs_fetcher` with built-in fetching (kept, after a live comparison), added tracked tests for `servers/docs_fetcher/`, added the Baseline estimate and Owner time fields, built `scripts/check_grounding.py`, and defined the baseline eval protocol (`workers/BASELINE_EVAL_PROTOCOL.md`, no eval run yet). Still open: write-path deny rules in worker settings, a fetch-cap gate in `docs_fetcher`, an import-versus-kb checker, and a rule to run the grounding checker at acceptance. Next revisit: when 5 baseline evals have run or the log reaches 20 entries, whichever comes first.
+Revisit trigger: the 10-entry revisit ran on 2026-11-07. It compared `docs_fetcher` with built-in fetching (kept, after a live comparison), added tracked tests for `servers/docs_fetcher/`, added the Baseline estimate and Owner time fields, built `scripts/check_grounding.py`, and defined the baseline eval protocol (`workers/BASELINE_EVAL_PROTOCOL.md`, first eval run 2026-11-07). Done since: write-path deny rules in worker settings, a fetch-cap gate in `docs_fetcher`, an import-versus-kb checker, and a rule to run the grounding checker at acceptance. Nothing from that list is open. Next revisit: when 5 baseline evals have run or the log reaches 20 entries, whichever comes first (1 eval and 16 entries as of 2026-11-07).
 
 ## Last reviewed
 
-2026-10-06
+2026-11-07
