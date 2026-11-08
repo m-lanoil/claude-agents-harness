@@ -51,12 +51,16 @@ class FakeWeb:
 def isolated_server(monkeypatch, tmp_path):
     server._cache.clear()
     server._seen_content.clear()
+    server._attempted.clear()
+    monkeypatch.setattr(server, "MAX_URLS", None)
+    monkeypatch.setattr(server, "MAX_URLS_ERROR", None)
     monkeypatch.setattr(server, "LIBRARIES_PATH", tmp_path / "libraries.json")
     monkeypatch.setattr(server, "CLIS_PATH", tmp_path / "clis.json")
     monkeypatch.setattr(server, "OTHER_SOURCES_PATH", tmp_path / "other_sources.json")
     yield
     server._cache.clear()
     server._seen_content.clear()
+    server._attempted.clear()
 
 
 @pytest.fixture

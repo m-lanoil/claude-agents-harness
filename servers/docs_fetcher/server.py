@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -35,6 +36,25 @@ _cache: dict[str, str] = {}
 
 # Session-scoped: hash of cleaned page text -> first URL that returned it (advisory duplicate-content check)
 _seen_content: dict[int, str] = {}
+
+
+def _read_cap(raw):
+    """Parse DOCS_FETCHER_MAX_URLS. Returns (cap, error); unset or empty means no cap, an invalid value is an error."""
+    if raw is None or raw.strip() == "":
+        return None, None
+    try:
+        cap = int(raw.strip())
+    except ValueError:
+        cap = 0
+    if cap < 1:
+        return None, f"DOCS_FETCHER_MAX_URLS must be a positive integer, got {raw!r}. Fix it and restart the session."
+    return cap, None
+
+
+# Fetch budget: the owner sets DOCS_FETCHER_MAX_URLS when launching a session; unset means no cap.
+# The count is of distinct URLs attempted this session, failed ones included.
+MAX_URLS, MAX_URLS_ERROR = _read_cap(os.environ.get("DOCS_FETCHER_MAX_URLS"))
+_attempted: set[str] = set()
 
 
 def _load_libraries() -> dict:
@@ -85,10 +105,32 @@ def _pdf_to_text(data: bytes) -> "_PlainText | dict":
     return _PlainText(text)
 
 
+def _budget_error(url: str) -> dict | None:
+    """An error dict if fetching this URL would exceed the budget (or the cap setting is invalid), else None."""
+    if MAX_URLS_ERROR:
+        return {"error": MAX_URLS_ERROR, "budget_reached": True}
+    if MAX_URLS is None or url in _attempted:
+        return None
+    if len(_attempted) >= MAX_URLS:
+        return {
+            "error": (
+                f"Fetch budget reached ({MAX_URLS} distinct URLs). Proceed with what is already grounded and flag "
+                "the shortfall; do not retry. The owner raises the cap by restarting the session with a higher "
+                "DOCS_FETCHER_MAX_URLS."
+            ),
+            "budget_reached": True,
+        }
+    return None
+
+
 def _fetch_html(url: str) -> str | dict:
     """Fetch a URL, using the session cache. Returns HTML (or PDF-extracted plain text) as a string, or an error dict."""
     if url in _cache:
         return _cache[url]
+    budget_error = _budget_error(url)
+    if budget_error:
+        return budget_error
+    _attempted.add(url)
     try:
         response = httpx.get(url, headers=REQUEST_HEADERS, follow_redirects=True, timeout=30)
         response.raise_for_status()
@@ -411,6 +453,7 @@ def crawl_docs(url: str, max_pages: int = 10, same_prefix: bool = True, keywords
     queue = [url]
     pages = []
     pages_visited = 0
+    stopped = None
 
     while queue and pages_visited < max_pages:
         current_url = queue.pop(0)
@@ -421,6 +464,10 @@ def crawl_docs(url: str, max_pages: int = 10, same_prefix: bool = True, keywords
 
         result = _fetch_html(current_url)
         if isinstance(result, dict):
+            if result.get("budget_reached"):
+                stopped = result["error"]
+                pages_visited -= 1
+                break
             continue
 
         soup = BeautifulSoup(result, "html.parser")
@@ -449,12 +496,15 @@ def crawl_docs(url: str, max_pages: int = 10, same_prefix: bool = True, keywords
 
         pages.append({"url": current_url, "content": content})
 
-    return {
+    crawl_result = {
         "pages_visited": pages_visited,
         "pages_matched": len(pages),
         "pages": pages,
         "note": CONTENT_NOTE,
     }
+    if stopped:
+        crawl_result["stopped"] = stopped
+    return crawl_result
 
 
 @mcp.tool(annotations={"readOnlyHint": True})
@@ -465,13 +515,20 @@ def get_fetch_stats() -> dict:
     total_chars = sum(len(html) for html in _cache.values())
     estimated_tokens = total_chars // 4
     session_note = f"{fetch_count} URL{'s' if fetch_count != 1 else ''} fetched, ~{estimated_tokens:,} estimated tokens this session."
-    return {
+    stats = {
         "urls_fetched": urls_fetched,
         "fetch_count": fetch_count,
         "total_chars": total_chars,
         "estimated_tokens": estimated_tokens,
         "session_note": session_note,
     }
+    if MAX_URLS is not None:
+        stats["fetch_cap"] = MAX_URLS
+        stats["urls_attempted"] = len(_attempted)
+        stats["remaining"] = max(MAX_URLS - len(_attempted), 0)
+    if MAX_URLS_ERROR:
+        stats["fetch_cap_error"] = MAX_URLS_ERROR
+    return stats
 
 
 if __name__ == "__main__":
