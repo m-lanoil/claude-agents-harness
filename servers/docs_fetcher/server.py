@@ -147,6 +147,9 @@ def _fetch_html(url: str) -> str | dict:
         result = _pdf_to_text(response.content)
         if isinstance(result, dict):
             return result
+    elif "text/markdown" in content_type or "text/plain" in content_type:
+        # Not HTML: an HTML parser would read literal <script> or <placeholder> text as tags and drop it.
+        result = _PlainText(response.text)
     else:
         result = response.text
     _cache[url] = result
