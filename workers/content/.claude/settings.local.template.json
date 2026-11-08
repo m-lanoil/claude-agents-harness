@@ -37,5 +37,15 @@
   ],
   "disabledMcpjsonServers": [
     "system_monitor"
-  ]
+  ],
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "filesystem": {
+      "allowWrite": [
+        "<YOUR_PROJECT_ROOT>/output"
+      ]
+    }
+  }
 }

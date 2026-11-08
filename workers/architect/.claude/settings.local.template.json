@@ -32,5 +32,15 @@
       "Edit(/<YOUR_PROJECT_ROOT>/servers/*.md)",
       "Edit(/<YOUR_PROJECT_ROOT>/servers/kb/**)"
     ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "filesystem": {
+      "allowWrite": [
+        "<YOUR_PROJECT_ROOT>/output"
+      ]
+    }
   }
 }

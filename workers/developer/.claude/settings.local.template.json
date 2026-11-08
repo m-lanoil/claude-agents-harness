@@ -34,5 +34,16 @@
   "enabledMcpjsonServers": [
     "system_monitor",
     "docs_fetcher"
-  ]
+  ],
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "filesystem": {
+      "allowWrite": [
+        "<YOUR_PROJECT_ROOT>/output",
+        "<YOUR_PROJECT_ROOT>/servers/kb"
+      ]
+    }
+  }
 }
