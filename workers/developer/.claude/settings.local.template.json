@@ -4,7 +4,35 @@
       "Read(/<YOUR_PROJECT_ROOT>/**)",
       "mcp__docs_fetcher__fetch_url",
       "mcp__docs_fetcher__add_library"
+    ],
+    "deny": [
+      "Edit(/<YOUR_PROJECT_ROOT>/CLAUDE.md)",
+      "Edit(/<YOUR_PROJECT_ROOT>/README.md)",
+      "Edit(/<YOUR_PROJECT_ROOT>/STATUS.md)",
+      "Edit(/<YOUR_PROJECT_ROOT>/TASTE.md)",
+      "Edit(/<YOUR_PROJECT_ROOT>/.gitignore)",
+      "Edit(/<YOUR_PROJECT_ROOT>/.mcp.json)",
+      "Edit(/<YOUR_PROJECT_ROOT>/.mcp.template.json)",
+      "Edit(/<YOUR_PROJECT_ROOT>/.claude/**)",
+      "Edit(/<YOUR_PROJECT_ROOT>/workers/*/.claude/**)",
+      "Edit(/<YOUR_PROJECT_ROOT>/coordinator/**)",
+      "Edit(/<YOUR_PROJECT_ROOT>/pipeline/**)",
+      "Edit(/<YOUR_PROJECT_ROOT>/scripts/**)",
+      "Edit(/<YOUR_PROJECT_ROOT>/logs/**)",
+      "Edit(/<YOUR_PROJECT_ROOT>/workers/*.md)",
+      "Edit(/<YOUR_PROJECT_ROOT>/workers/*/CLAUDE.md)",
+      "Edit(/<YOUR_PROJECT_ROOT>/workers/developer/BUG_FIX_PROTOCOL.md)",
+      "Edit(/<YOUR_PROJECT_ROOT>/workers/developer/ML_TEST_OUTPUT_CONVENTION.md)",
+      "Edit(/<YOUR_PROJECT_ROOT>/servers/*/server.py)",
+      "Edit(/<YOUR_PROJECT_ROOT>/servers/*/pyproject.toml)",
+      "Edit(/<YOUR_PROJECT_ROOT>/servers/*/uv.lock)",
+      "Edit(/<YOUR_PROJECT_ROOT>/servers/*/*.template.json)",
+      "Edit(/<YOUR_PROJECT_ROOT>/servers/docs_fetcher/tests/**)",
+      "Edit(/<YOUR_PROJECT_ROOT>/servers/*.md)"
     ]
   },
-  "enabledMcpjsonServers": ["system_monitor", "docs_fetcher"]
+  "enabledMcpjsonServers": [
+    "system_monitor",
+    "docs_fetcher"
+  ]
 }
