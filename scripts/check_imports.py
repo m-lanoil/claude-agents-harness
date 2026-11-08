@@ -1,201 +1,243 @@
 #!/usr/bin/env python3
-"""List imported modules of a project and whether a kb notes file covers them and is fresh.
+"""List the modules a project imports and whether a kb file covers each one.
 
-Usage: python3 check_imports.py <project_dir> --kb <dir> [--alias <file>] [--max-age 30]
-                                [--today YYYY-MM-DD]
+Usage: python3 check_imports.py <project_dir> --kb <dir> [--alias <file>]
+                                [--max-age 30] [--today YYYY-MM-DD]
 Exit codes: 0 all covered and fresh, 1 any missing or stale, 2 bad invocation.
-
-Matches each import against the `library:` line of the kb files; use an alias file
-(`bs4=beautifulsoup4`) where the import name differs. Standard-library modules are not
-filtered, so any without a kb file appear as MISSING. Shell command strings are not checked.
+The output is a list for human judgement; it writes only to stdout.
+Use an alias file (`bs4=beautifulsoup4`) where the import name differs from the kb library
+name. Standard-library modules are not filtered, so any without a kb file appear as MISSING.
+Shell command strings are not checked.
 """
 import argparse
 import ast
-import datetime
-import os
-import sys
+import datetime as dt
+import re
+from pathlib import Path
 
+DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 NOT_CHECKED = "NOT CHECKED: shell command strings, dynamic imports, imports in non-.py files"
 
 
-def norm(s):
-    return s.strip().lower().replace("-", "_")
+def norm(name):
+    """Normalise a module or library name for comparison."""
+    return name.strip().lower().replace("-", "_")
 
 
-def walk_visible(root):
-    """Yield (dirpath, dirnames, filenames) skipping __pycache__ and hidden folders."""
-    for dp, dns, fns in os.walk(root):
-        dns[:] = sorted(d for d in dns if d != "__pycache__" and not d.startswith("."))
-        yield dp, dns, sorted(fns)
-
-
-def load_aliases(path):
-    aliases = {}
-    with open(path, encoding="utf-8") as f:
-        for n, line in enumerate(f, 1):
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            if "=" not in line:
-                raise ValueError(f"{path}:{n}: expected import_name=library")
-            k, v = line.split("=", 1)
-            if not k.strip() or not v.strip():
-                raise ValueError(f"{path}:{n}: expected import_name=library")
-            aliases[norm(k)] = norm(v)
-    return aliases
+def parse_date(text):
+    """Return a date for a strict YYYY-MM-DD string, else None."""
+    text = text.strip()
+    if not DATE_RE.fullmatch(text):
+        return None
+    try:
+        return dt.date.fromisoformat(text)
+    except ValueError:
+        return None
 
 
 def parse_frontmatter(text):
-    """Return dict of frontmatter key -> value (first occurrence)."""
-    lines = text.lstrip("﻿").splitlines()
+    """Return (library_key, fetched_date) from a kb file's leading --- block.
+
+    library_key is the normalised first token of the library: value, or None.
+    fetched_date is a date or None when missing or unparseable.
+    """
+    lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
-        return {}
-    fm = {}
+        return None, None
+    library = None
+    fetched = None
     for line in lines[1:]:
         if line.strip() == "---":
             break
-        if ":" in line:
-            k, v = line.split(":", 1)
-            fm.setdefault(k.strip().lower(), v.strip())
-    return fm
+        if line.startswith("library:"):
+            tokens = line[len("library:"):].split()
+            if tokens:
+                library = norm(tokens[0])
+        elif line.startswith("fetched:"):
+            fetched = parse_date(line[len("fetched:"):])
+    return library, fetched
 
 
 def load_kb(kb_dir):
-    """Return {normalised library: [(relpath, date or None), ...]}."""
+    """Map normalised library key -> list of (path, fetched_date)."""
     kb = {}
-    for dp, _, fns in os.walk(kb_dir):
-        for fn in sorted(fns):
-            if not fn.lower().endswith(".md"):
-                continue
-            p = os.path.join(dp, fn)
-            try:
-                with open(p, encoding="utf-8", errors="replace") as f:
-                    fm = parse_frontmatter(f.read())
-            except OSError:
-                continue
-            toks = fm.get("library", "").strip("'\" ").split()
-            if not toks:
-                continue
-            lib = norm(toks[0].strip("'\""))
-            d = None
-            raw = fm.get("fetched", "").strip("'\" ")
-            try:
-                d = datetime.datetime.strptime(raw, "%Y-%m-%d").date()
-            except ValueError:
-                d = None
-            kb.setdefault(lib, []).append((os.path.relpath(p, kb_dir), d))
+    for path in sorted(kb_dir.rglob("*.md")):
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except ValueError:
+            continue
+        library, fetched = parse_frontmatter(text)
+        if library:
+            kb.setdefault(library, []).append((path, fetched))
     return kb
 
 
-def find_imports(project):
-    """Return ({module: (relfile, line)}, local_names, errors)."""
-    py_files, local = [], set()
-    for dp, dns, fns in walk_visible(project):
-        local.update(norm(d) for d in dns)
-        for fn in fns:
-            if fn.endswith(".py"):
-                py_files.append(os.path.join(dp, fn))
-                local.add(norm(fn[:-3]))
-    found, errors = {}, []
-    for p in py_files:
-        rel = os.path.relpath(p, project)
+def load_alias(alias_path):
+    """Parse import_name=library lines. Raise ValueError on a malformed line."""
+    alias = {}
+    for number, raw in enumerate(alias_path.read_text(encoding="utf-8").splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        name, sep, library = line.partition("=")
+        if not sep or not name.strip() or not library.strip():
+            raise ValueError(f"{alias_path}:{number}: expected import_name=library")
+        alias[norm(name)] = norm(library)
+    return alias
+
+
+def rel_parts(path, root):
+    return path.parts[len(root.parts):]
+
+
+def python_files(root):
+    """Every .py under root, skipping __pycache__ and hidden folders."""
+    files = []
+    for path in root.rglob("*.py"):
+        if not path.is_file():
+            continue
+        folders = rel_parts(path, root)[:-1]
+        if any(part == "__pycache__" or part.startswith(".") for part in folders):
+            continue
+        files.append(path)
+    return sorted(files, key=lambda p: "/".join(rel_parts(p, root)))
+
+
+def local_names(root):
+    """Normalised names of every <name>.py file and <name>/ folder under root, skipping __pycache__ and hidden folders."""
+    names = set()
+    for path in root.rglob("*"):
+        if any(part == "__pycache__" or part.startswith(".") for part in rel_parts(path, root)):
+            continue
+        if path.is_dir():
+            names.add(norm(path.name))
+        elif path.suffix == ".py":
+            names.add(norm(path.stem))
+    return names
+
+
+def collect_imports(root):
+    """Return (first_seen, skipped).
+
+    first_seen maps dotted module -> (relative file, line) of its earliest sighting.
+    skipped lists relative paths of files that could not be read or parsed.
+    """
+    first_seen = {}
+    skipped = []
+    for path in python_files(root):
+        rel = "/".join(rel_parts(path, root))
         try:
-            with open(p, "rb") as f:
-                tree = ast.parse(f.read(), filename=p)
-        except (SyntaxError, ValueError, OSError) as e:
-            errors.append(f"{rel}: {type(e).__name__}")
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel)
+        except (SyntaxError, ValueError):
+            skipped.append(rel)
             continue
         for node in ast.walk(tree):
-            names = []
+            found = []
             if isinstance(node, ast.Import):
-                names = [a.name for a in node.names]
+                found = [alias.name for alias in node.names]
             elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
-                names = [node.module]
-            for nm in names:
-                cur = found.get(nm)
-                if cur is None or (rel, node.lineno) < cur:
-                    found[nm] = (rel, node.lineno)
-    return found, local, errors
+                found = [node.module]
+            for module in found:
+                seen = (rel, node.lineno)
+                if module not in first_seen or seen < first_seen[module]:
+                    first_seen[module] = seen
+    return first_seen, skipped
 
 
-def candidates(module, aliases):
+def match_files(module, kb, alias):
+    """kb entries for the longest dotted prefix of module that has any, else []."""
     parts = module.split(".")
-    first = norm(parts[0])
-    parts = [aliases.get(first, first)] + [norm(x) for x in parts[1:]]
-    return [".".join(parts[:i]) for i in range(len(parts), 0, -1)]
+    head = norm(parts[0])
+    if head in alias:
+        parts = [alias[head]] + parts[1:]
+    for size in range(len(parts), 0, -1):
+        key = norm(".".join(parts[:size]))
+        if key in kb:
+            return kb[key]
+    return []
 
 
-def classify(module, kb, aliases, today, max_age):
-    for cand in candidates(module, aliases):
-        if cand in kb:
-            files = kb[cand]
-            dates = [d for _, d in files if d is not None]
-            if dates and (today - max(dates)).days <= max_age:
-                return "OK", files
-            return "STALE", files
-    return "MISSING", []
+def classify(entries, today, max_age):
+    """Return (status, details) for one module's matching kb entries."""
+    if not entries:
+        return "MISSING", "no kb file"
+    dated = [d for _, d in entries if d is not None]
+    details = []
+    for path, fetched in entries:
+        if fetched is None:
+            details.append(f"{path.name} (no valid fetched date)")
+        else:
+            details.append(f"{path.name} fetched {fetched.isoformat()} ({(today - fetched).days} days)")
+    if dated and (today - max(dated)).days <= max_age:
+        return "OK", "; ".join(details)
+    return "STALE", "; ".join(details)
 
 
-def fmt_files(files):
-    return ", ".join(f"{p} ({d.isoformat() if d else 'no date'})" for p, d in sorted(files))
+def build_parser():
+    parser = argparse.ArgumentParser(
+        prog="check_imports.py",
+        description="List imported modules and whether a fresh kb file covers each.",
+    )
+    parser.add_argument("project_dir")
+    parser.add_argument("--kb", dest="kb", required=True)
+    parser.add_argument("--alias", dest="alias", default=None)
+    parser.add_argument("--max-age", dest="max_age", type=int, default=30)
+    parser.add_argument("--today", dest="today", default=None)
+    return parser
 
 
-def main(argv=None):
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("project_dir")
-    ap.add_argument("--kb", required=True)
-    ap.add_argument("--alias")
-    ap.add_argument("--max-age", type=int, default=30)
-    ap.add_argument("--today")
-    args = ap.parse_args(argv)  # argparse exits 2 on bad usage
+def main(argv=None, out=None):
+    """Run the check and return the exit code. out defaults to stdout."""
+    parser = build_parser()
+    try:
+        args = parser.parse_args(argv)
+        root = Path(args.project_dir)
+        kb_dir = Path(args.kb)
+        if not root.is_dir():
+            parser.error(f"project_dir is not a directory: {root}")
+        if not kb_dir.is_dir():
+            parser.error(f"--kb is not a directory: {kb_dir}")
+        today = dt.date.today()
+        if args.today is not None:
+            today = parse_date(args.today)
+            if today is None:
+                parser.error(f"--today must be YYYY-MM-DD: {args.today}")
+        alias = {}
+        if args.alias is not None:
+            alias_path = Path(args.alias)
+            if not alias_path.is_file():
+                parser.error(f"--alias is not a file: {alias_path}")
+            try:
+                alias = load_alias(alias_path)
+            except ValueError as exc:
+                parser.error(str(exc))
+    except SystemExit as exc:
+        return exc.code
 
-    def bad(msg):
-        print(f"error: {msg}", file=sys.stderr)
-        return 2
+    kb = load_kb(kb_dir)
+    local = local_names(root)
+    first_seen, skipped = collect_imports(root)
 
-    if not os.path.isdir(args.project_dir):
-        return bad(f"not a directory: {args.project_dir}")
-    if not os.path.isdir(args.kb):
-        return bad(f"not a directory: {args.kb}")
-    today = datetime.date.today()
-    if args.today:
-        try:
-            today = datetime.datetime.strptime(args.today, "%Y-%m-%d").date()
-        except ValueError:
-            return bad(f"bad --today: {args.today}")
-    aliases = {}
-    if args.alias:
-        try:
-            aliases = load_aliases(args.alias)
-        except (OSError, ValueError) as e:
-            return bad(str(e))
-
-    kb = load_kb(args.kb)
-    found, local, errors = find_imports(args.project_dir)
     groups = {"MISSING": [], "STALE": [], "OK": []}
-    for mod in sorted(found):
-        if norm(mod.split(".")[0]) in local:
+    for module in sorted(first_seen):
+        if norm(module.split(".")[0]) in local:
             continue
-        status, files = classify(mod, kb, aliases, today, args.max_age)
-        rel, line = found[mod]
-        text = f"  {mod}  [{rel}:{line}]"
-        if files:
-            text += f"  kb: {fmt_files(files)}"
-        groups[status].append(text)
+        status, details = classify(match_files(module, kb, alias), today, args.max_age)
+        where = f"{first_seen[module][0]}:{first_seen[module][1]}"
+        groups[status].append(f"  {module}  (first seen {where})  {details}")
 
     for status in ("MISSING", "STALE", "OK"):
-        print(f"{status} ({len(groups[status])})")
-        for t in groups[status]:
-            print(t)
-        print()
-    if errors:
-        print(f"UNPARSEABLE FILES ({len(errors)})")
-        for e in errors:
-            print(f"  {e}")
-        print()
-    print(NOT_CHECKED)
+        print(f"{status} ({len(groups[status])})", file=out)
+        for line in groups[status]:
+            print(line, file=out)
+    if skipped:
+        print(f"SKIPPED unparseable files ({len(skipped)}): " + ", ".join(skipped), file=out)
+    print(NOT_CHECKED, file=out)
+
     return 1 if groups["MISSING"] or groups["STALE"] else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())
