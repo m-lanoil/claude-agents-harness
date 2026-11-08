@@ -18,6 +18,7 @@ and fixed. The goal is Coordinator for eligible tasks, with Manual always availa
 **Re-enable:** when all exit criteria below are met, the owner approves replacing this section with
 "Default Manual; Coordinator only for tasks meeting the criteria below, chosen per task by the owner."
 Until then, do not recommend Coordinator.
+**Record while the override holds:** at each brief, still state the Coordinator-eligible call (yes, no or unsure, with the reason against the "use when all of these hold" criteria) and the error-cost rating for the owner to confirm, and carry both into the Track-record entry. The recommendation stays Manual. Eligibility is the orchestrator's assessment, not a question for the owner; only error cost is owner-confirmed. Exit criteria 1 and 2 count only "yes" entries, so unrecorded entries cannot count toward them.
 
 ### Exit criteria (all required)
 1. **Acceptance reliability:** the last 5 coordinator-eligible tasks logged no orchestrator acceptance
