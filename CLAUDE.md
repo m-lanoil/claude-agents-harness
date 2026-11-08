@@ -4,8 +4,8 @@
 This repo is a Claude Code harness: a Meta-Orchestrator routes tasks to five workers backed by three MCP servers.
 - Human-readable overview, setup and fit: `README.md`. Component maturity, evidence and known limits: `STATUS.md`.
 - `STATUS.md` lists what is and is not evidenced. Do not state outcomes, success rates or capabilities beyond it.
-- At brief time, ask the owner for the baseline (what they would have done otherwise: by hand, plain Claude, or not at all) and keep it for the log entry.
-- When a task outcome is recorded (hop close or acceptance), propose a Track-record entry in the `STATUS.md` column format and add it once the owner approves. Ask only for fields the owner alone knows (claims fixed, how found, used as deliverable). Edit `README.md` and `STATUS.md` (including the Track-record log) only with the owner's explicit approval; sanitize client details in every entry.
+- At brief time, ask the owner for the baseline (what they would have done otherwise: by hand, plain Claude, or not at all) and, unless the baseline is "not at all", their time estimate for it in minutes; keep both for the log entry.
+- When a task outcome is recorded (hop close or acceptance), propose a Track-record entry in the `STATUS.md` column format and add it once the owner approves. Ask only for fields the owner alone knows (claims fixed, how found, used as deliverable, owner time in minutes). Edit `README.md` and `STATUS.md` (including the Track-record log) only with the owner's explicit approval; sanitize client details in every entry.
 - This section adds no routing rules; the rules below still govern.
 
 ## Role
