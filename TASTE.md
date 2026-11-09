@@ -22,6 +22,7 @@ confirm or overwrite.
 - Rule/instruction markdown stays ≤100 non-empty lines (`scripts/check_markdown_length.py`).
 - Match existing docs' voice and depth when editing them.
 - Full timestamps `YYYY-MM-DD HH:MM:SS` in logs.
+- Open-ended fields (task type, topic, category) take free text; give examples, not a closed list or per-value definitions, unless code or a count depends on the exact values.
 
 ## Process
 - Human-in-the-loop before anything destructive, system-level, or outward-facing

@@ -38,6 +38,9 @@ Before using any kb file, and before any fetch, consult `logs/KB_STALENESS_LOG.m
 ### KB file naming convention
 All kb files must use the prefix `kb_` followed by a lowercase snake_case topic slug: `kb_[topic].md` (e.g., `kb_fastmcp.md`, `kb_ev_charging_market.md`). No other naming scheme is permitted — do not use suffixes like `_grounding` or `_sources`.
 
+### Open-ended fields
+Open-ended fields (task type, topic, category) take free text with examples, not closed lists or per-value definitions, unless code or a count depends on the values (`../TASTE.md`, Documentation).
+
 ### KB frontmatter format
 All kb files must use this header — adapt the primary key name to the worker's domain:
 ```
