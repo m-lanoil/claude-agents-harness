@@ -32,6 +32,7 @@ For manual mode: give the worker directory path and tell the user to open a Clau
 - Bug fix where root cause is already isolated and fully described in the brief
 - Research task where the question is scoped and all needed URLs are known
 - ML task where the next training step is fully specified and no metric review is needed mid-run
+- Plan then execute: the plan is produced and approved in manual rounds (Researcher, Architect); a Developer hop that implements the approved plan, with fetch budget and approved URLs fixed in it, may run via the coordinator when error cost is low. The owner runs the tests after the hop (the Developer does not self-execute).
 
 In hybrid cases, state the assumption that makes coordinator viable (e.g. "treating the root cause as confirmed per the brief").
 
