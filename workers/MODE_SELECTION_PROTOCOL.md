@@ -9,8 +9,8 @@ State the recommended mode and reason before routing. The user can override.
 Default **Manual**; Coordinator only for tasks meeting the criteria below, chosen per task by the owner.
 The standing override (2026-09-28 to 2026-11-09) was lifted by the owner on 2026-11-09: the per-brief
 eligibility record and the six exit criteria were overhead, so they no longer gate coordinator use.
-The `coordinator/` program is unchanged; known limits (no tracked tests, failed-fetch path undefined,
-workers cannot ask mid-task) stay listed in `STATUS.md`.
+The coordinator has a defined failed-fetch path (blocked return, owner prompt, resume; `coordinator/README.md`)
+but has never run live; known limits (workers cannot ask mid-task) stay listed in `STATUS.md`.
 
 ## Coordinator mode — use when all of these hold
 - Spec is complete and self-contained: worker needs no mid-task clarification
