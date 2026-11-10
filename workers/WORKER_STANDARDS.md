@@ -53,17 +53,27 @@ fetched: YYYY-MM-DD
 
 ### Human-Retrieved Source Protocol
 When a registered/approved URL fails to fetch mid-task (dead link, paywall, bot-block) and the
-user supplies the source directly (e.g. a PDF) as a substitute — manual mode only, since there's
-no human present to hand off to mid-coordinator-run: save it to `./human-retrieved-sources/`
-(gitignored, not registered in the Source Registry), named `lowercase_snake_case` matching the
-source's registry key where one exists (e.g. `uptime_institute_2026_survey.pdf`). Write the kb
-file exactly as normal, citing the local file path in the frontmatter `note:` field instead of a
-fetch URL. This is not a training-data fallback — the Grounding Protocol's "no unverified data"
-rule still applies; the substitution itself must be disclosed, not silently absorbed as if it were
-a normal fetch.
+user supplies the source directly (e.g. a PDF) as a substitute: save it to
+`./human-retrieved-sources/` (gitignored, not registered in the Source Registry), named
+`lowercase_snake_case` matching the source's registry key where one exists (e.g.
+`uptime_institute_2026_survey.pdf`). Write the kb file exactly as normal, citing the local file
+path in the frontmatter `note:` field instead of a fetch URL. This is not a training-data
+fallback — the Grounding Protocol's "no unverified data" rule still applies; the substitution
+itself must be disclosed, not silently absorbed as if it were a normal fetch.
+
+**Manual mode:** say so and ask the user how to proceed.
+**Coordinator mode:** no human is present mid-run, so do not ask. Stop fetching, do not save the
+failed page under the named source, and end the run with the JSON block's `status` set to
+`"blocked"` and a `blocked_sources` list. Each entry has `source` (registry key or URL), `reason`
+(dead link, paywall, bot-block, or page mismatch) and optionally `candidates` (replacement URLs
+you already know of; do not search for new ones). Keep what is already grounded, and leave the
+deliverable unwritten unless the brief says otherwise. The orchestrator returns the user's
+answer in the resumed session: a local file path (apply this protocol), an approved replacement
+URL (fetch it), or "continue without" (proceed and disclose the missing source in the
+deliverable and self-critique).
 
 ### Page match check
-Before saving a kb file, confirm the fetched page matches what the brief or registry says it is (title or first heading, topic). If it does not, or if two different URLs return identical content, treat it as a failed fetch under Security Baseline item 2: do not save it under the named source, say so, and ask how to proceed (Human-Retrieved Source Protocol applies in manual mode). Client-rendered docs sites can return the same page for every route with no error.
+Before saving a kb file, confirm the fetched page matches what the brief or registry says it is (title or first heading, topic). If it does not, or if two different URLs return identical content, treat it as a failed fetch under Security Baseline item 2: do not save it under the named source and follow the Human-Retrieved Source Protocol for your mode. Client-rendered docs sites can return the same page for every route with no error.
 
 ### Token Budget Protocol
 1. **Pre-task declaration** — fetch budget and any approved URLs for non-registered sources are specified in the task brief. Do not re-declare mid-task — proceed within the budget given.
