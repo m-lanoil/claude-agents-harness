@@ -5,6 +5,8 @@ Entry point: run(task) async. Called from __main__.py or a future scheduled trig
 import asyncio
 import json
 import re
+import shutil
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -36,6 +38,8 @@ At the end of your response, output a JSON block with this exact structure — n
   "gaps": ["<gap 1>", "<gap 2>"]
 }
 ```
+
+If a required source cannot be fetched, end instead with "status": "blocked" and a "blocked_sources" list of {"source", "reason", "candidates" (optional)}, as WORKER_STANDARDS.md (Human-Retrieved Source Protocol) describes.
 """
 
 # Matches the last ```json ... ``` block — same pattern as acceptance.py
@@ -219,13 +223,17 @@ async def _run_single_hop(
     routing: RoutingPrompt,
     full_prompt: str,
     resume_session: Optional[str] = None,
-) -> tuple[AcceptanceResult, WorkerResult]:
+) -> tuple[Optional[AcceptanceResult], WorkerResult]:
     """Invoke worker once; parse result; run acceptance check.
 
     Returns (AcceptanceResult, WorkerResult). On parse failure, WorkerResult
     has status='malformed' and acceptance fails automatically.
+    A worker that ends with status='blocked' (failed-fetch path) has no
+    deliverable to check: acceptance is skipped and the AcceptanceResult is None.
+    Callers must handle that case (see _run_hop_handling_blocks).
     resume_session: optional session ID for resuming a prior worker session
-    (used by _handle_validator_result for semantic correction retries).
+    (used by _handle_validator_result for semantic correction retries and by
+    the blocked-source resume).
     """
     raw_text, session_id = await _invoke_worker(routing.worker, full_prompt, resume_session)
 
@@ -242,7 +250,203 @@ async def _run_single_hop(
     else:
         result.session_id = session_id
 
+    if result.status == "blocked":
+        return None, result
+
     check = acceptance_check(result, routing)
+    return check, result
+
+
+# ---------------------------------------------------------------------------
+# Blocked-source path (failed fetch): stop, report, resume
+# ---------------------------------------------------------------------------
+
+_MAX_BLOCK_RESUMES = 2
+_HUMAN_SOURCES_DIRNAME = "human-retrieved-sources"
+
+
+@dataclass
+class _BlockBudget:
+    """Block-resume cycles used so far for one hop (shared across its retries)."""
+    used: int = 0
+
+
+def _slug(text: str) -> str:
+    """lowercase_snake_case slug: non-alphanumerics become underscores, runs collapse."""
+    out: list[str] = []
+    for ch in text.strip().lower():
+        if ch.isalnum():
+            out.append(ch)
+        elif out and out[-1] != "_":
+            out.append("_")
+    return "".join(out).strip("_")
+
+
+def _copy_human_source(src: Path, dest_dir: Path, source_key: str) -> Path:
+    """Copy an owner-supplied file into dest_dir; never overwrite; return the copy.
+
+    The copy is named after the blocked source's registry key (lowercase_snake_case)
+    plus the original file's suffix. If that name is taken, _2, _3, ... is appended.
+    Exclusive-create mode ("xb") makes the no-overwrite check atomic.
+    """
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    base = _slug(source_key) if not source_key.lower().startswith("http") else ""
+    base = base or _slug(src.stem) or "human_source"
+    n = 1
+    while True:
+        name = f"{base}{src.suffix}" if n == 1 else f"{base}_{n}{src.suffix}"
+        dest = dest_dir / name
+        try:
+            with src.open("rb") as fsrc, dest.open("xb") as fdst:
+                shutil.copyfileobj(fsrc, fdst)
+        except FileExistsError:
+            n += 1
+            continue
+        return dest
+
+
+def _present_blocked_sources(result: WorkerResult) -> None:
+    print(f"\n{'!' * 60}")
+    print("Worker is BLOCKED: it could not fetch the source(s) below and has stopped.")
+    print("!" * 60)
+    for i, entry in enumerate(result.blocked_sources, start=1):
+        print(f"\n[{i}] {entry.get('source')}")
+        print(f"    reason: {entry.get('reason', '(not given)')}")
+        for j, cand in enumerate(entry.get("candidates") or [], start=1):
+            print(f"    candidate {j}: {cand}")
+
+
+def _collect_block_answers(result: WorkerResult) -> Optional[list[dict]]:
+    """Ask the owner for one answer per blocked source. None means abort.
+
+    No side effects here (no copy, no registration), so an abort on a later
+    source leaves nothing behind. Answer shapes:
+      {"source", "kind": "file", "path": Path}
+      {"source", "kind": "url", "url": str, "name": str}
+      {"source", "kind": "skip"}
+    """
+    _present_blocked_sources(result)
+    answers: list[dict] = []
+    for i, entry in enumerate(result.blocked_sources, start=1):
+        source = str(entry.get("source"))
+        candidates = [str(c) for c in (entry.get("candidates") or [])]
+        while True:
+            choice = input(
+                f"[{i}] {source}: (1) local file path / (2) replacement URL / "
+                "(3) continue without / (4) abort: "
+            ).strip()
+            if choice == "4":
+                return None
+            if choice == "3":
+                answers.append({"source": source, "kind": "skip"})
+                break
+            if choice == "1":
+                raw = input("  Path to the file: ").strip()
+                path = Path(raw).expanduser() if raw else None
+                if path is None or not path.is_file():
+                    print("  Not a readable file. Try again.")
+                    continue
+                answers.append({"source": source, "kind": "file", "path": path})
+                break
+            if choice == "2":
+                hint = " (or candidate number)" if candidates else ""
+                raw = input(f"  Replacement URL{hint}: ").strip()
+                if raw.isdigit() and 1 <= int(raw) <= len(candidates):
+                    raw = candidates[int(raw) - 1]
+                if not raw.lower().startswith("https://"):
+                    print("  Need an https:// URL. Try again.")
+                    continue
+                # Fresh registry name: the old key already exists and _preregister_urls
+                # skips names that are present, so reusing it would register nothing.
+                name = f"{_slug(source) or 'source'}_replacement"
+                answers.append({"source": source, "kind": "url", "url": raw, "name": name})
+                break
+            print("  Enter 1, 2, 3 or 4.")
+    return answers
+
+
+def _apply_block_answers(worker_name: str, answers: list[dict]) -> list[str]:
+    """Perform the side effects of the answers; return one resume-prompt line each."""
+    worker_dir = WORKER_DIRS[worker_name]
+    lines: list[str] = []
+    urls_by_name: dict[str, str] = {}
+    for ans in answers:
+        source = ans["source"]
+        if ans["kind"] == "file":
+            copied = _copy_human_source(ans["path"], worker_dir / _HUMAN_SOURCES_DIRNAME, source)
+            print(f"[blocked] Copied {ans['path']} -> {copied}")
+            lines.append(
+                f"- {source}: the owner supplied a local file, saved at "
+                f"./{_HUMAN_SOURCES_DIRNAME}/{copied.name} (relative to your working "
+                "directory). Apply the Human-Retrieved Source Protocol."
+            )
+        elif ans["kind"] == "url":
+            urls_by_name[ans["name"]] = ans["url"]
+            lines.append(
+                f"- {source}: the owner approved this replacement URL, now registered "
+                f"as '{ans['name']}' in the Source Registry: {ans['url']}. Fetch it."
+            )
+        else:
+            lines.append(
+                f"- {source}: the owner chose to continue without this source. "
+                "Proceed and disclose the missing source in the deliverable and self-critique."
+            )
+    if urls_by_name:
+        _preregister_urls(json.dumps({"other": urls_by_name}))
+    return lines
+
+
+def _build_resume_prompt(answer_lines: list[str]) -> str:
+    return (
+        "The owner has answered for each source you reported as blocked:\n"
+        + "\n".join(answer_lines)
+        + "\n\nResume the task from where you stopped and finish it as briefed, "
+        "ending with the JSON return block."
+    )
+
+
+async def _run_hop_handling_blocks(
+    routing: RoutingPrompt,
+    full_prompt: str,
+    budget: _BlockBudget,
+) -> Optional[tuple[AcceptanceResult, WorkerResult]]:
+    """Run a hop; on a blocked return, ask the owner and resume the same session.
+
+    Returns (AcceptanceResult, WorkerResult) for the first non-blocked result, or
+    None if the hop must stop (owner aborted, no session to resume, or the
+    block-resume cap was exceeded). `budget` is shared by every call for the hop.
+    """
+    check, result = await _run_single_hop(routing, full_prompt)
+    while result.status == "blocked":
+        if budget.used >= _MAX_BLOCK_RESUMES:
+            _present_blocked_sources(result)
+            print(
+                f"\nBlocked again after {_MAX_BLOCK_RESUMES} resume cycles. Aborting this hop.\n"
+                "Manual fallback: continue in manual mode (workers/MODE_SELECTION_PROTOCOL.md) "
+                "from the hop files in output/intermediate_outputs/."
+            )
+            _append_worker_updates_log(
+                routing.worker, f"blocked: cap of {_MAX_BLOCK_RESUMES} resume cycles exceeded, aborted"
+            )
+            return None
+        if not result.session_id:
+            print(
+                "\nWorker is blocked but returned no session ID, so it cannot be resumed.\n"
+                "Manual fallback: continue in manual mode (workers/MODE_SELECTION_PROTOCOL.md) "
+                "from the hop files in output/intermediate_outputs/."
+            )
+            _append_worker_updates_log(routing.worker, "blocked: no session id to resume, aborted")
+            return None
+        answers = _collect_block_answers(result)
+        if answers is None:
+            print("Task aborted by user.")
+            _append_worker_updates_log(routing.worker, "blocked: user aborted at blocked-source prompt")
+            return None
+        resume_prompt = _build_resume_prompt(_apply_block_answers(routing.worker, answers))
+        budget.used += 1
+        check, result = await _run_single_hop(
+            routing, resume_prompt, resume_session=result.session_id
+        )
     return check, result
 
 
@@ -435,6 +639,17 @@ async def _handle_validator_result(
     retry_check, retry_result = await _run_single_hop(
         routing, correction_approved, resume_session=result.session_id
     )
+    if retry_check is None:
+        # Worker came back blocked on a failed fetch during the semantic correction.
+        print(
+            "\n[Validator] Correction retry ended blocked on a failed fetch. Escalating to user.\n"
+            "Manual fallback: continue in manual mode (workers/MODE_SELECTION_PROTOCOL.md) "
+            "from the hop files in output/intermediate_outputs/."
+        )
+        _append_worker_updates_log(
+            routing.worker, "validator_fail: correction retry ended blocked on a failed fetch"
+        )
+        return False
     if not retry_check.passed:
         print(f"\n[Validator] Correction retry acceptance failed: {retry_check.correction_brief}")
         _append_worker_updates_log(
@@ -537,7 +752,11 @@ async def _execute_chain(
 
         # Invoke + acceptance check
         retry_used = False
-        check, result = await _run_single_hop(routing, approved_prompt)
+        block_budget = _BlockBudget()
+        outcome = await _run_hop_handling_blocks(routing, approved_prompt, block_budget)
+        if outcome is None:
+            return False
+        check, result = outcome
 
         if not check.passed:
             print(f"\nAcceptance FAILED: {check.correction_brief}")
@@ -555,7 +774,10 @@ async def _execute_chain(
                 print("Escalating to user — task not closed.")
                 return False
 
-            check, result = await _run_single_hop(routing, retry_approved)
+            outcome = await _run_hop_handling_blocks(routing, retry_approved, block_budget)
+            if outcome is None:
+                return False
+            check, result = outcome
             if not check.passed:
                 print(f"\nRetry also failed: {check.correction_brief}")
                 print("Escalating to user — task not closed.")

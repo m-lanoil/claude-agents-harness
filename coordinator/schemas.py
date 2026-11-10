@@ -20,6 +20,9 @@ class WorkerResult:
     self_critique: str
     gaps: List[str]
     session_id: Optional[str] = None
+    # Each entry: {"source": str, "reason": str, "candidates": list[str] (optional)}.
+    # Only populated when status == "blocked".
+    blocked_sources: List[dict] = field(default_factory=list)
 
 
 @dataclass

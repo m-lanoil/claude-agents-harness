@@ -17,6 +17,12 @@ def parse_worker_result(raw_text: str) -> Optional[WorkerResult]:
 
     Returns None if the block is absent, unparseable, or missing required keys.
     A None return triggers automatic acceptance failure (malformed return).
+
+    A return with status "blocked" (failed-fetch path) is parsed separately: it
+    must carry a non-empty `blocked_sources` list of objects with a `source`
+    key; deliverable_path, self_critique and gaps are optional and default to
+    empty. A blocked return without usable blocked_sources is malformed (None),
+    since the owner could not be asked anything.
     """
     matches = list(_JSON_BLOCK_RE.finditer(raw_text))
     if not matches:
@@ -25,6 +31,25 @@ def parse_worker_result(raw_text: str) -> Optional[WorkerResult]:
         data = json.loads(matches[-1].group(1))
     except json.JSONDecodeError:
         return None
+    if not isinstance(data, dict):
+        return None
+
+    if data.get("status") == "blocked":
+        raw_sources = data.get("blocked_sources")
+        if not isinstance(raw_sources, list):
+            return None
+        blocked = [s for s in raw_sources if isinstance(s, dict) and s.get("source")]
+        if not blocked:
+            return None
+        return WorkerResult(
+            raw_text=raw_text,
+            deliverable_path=str(data.get("deliverable_path") or ""),
+            status="blocked",
+            self_critique=str(data.get("self_critique") or ""),
+            gaps=list(data.get("gaps") or []),
+            blocked_sources=blocked,
+        )
+
     if not _REQUIRED_RETURN_KEYS.issubset(data):
         return None
     return WorkerResult(

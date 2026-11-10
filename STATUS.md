@@ -16,7 +16,7 @@
 | docs_fetcher server | `servers/docs_fetcher/` | 11 MCP tools: source registries, fetch, search, crawl, stats | 538-line `server.py`, `pyproject.toml`, `uv.lock`; 9 offline test files in `tests/` (174 passed on 2026-11-07); fetch cap via `DOCS_FETCHER_MAX_URLS` (06e33f9) and the Markdown/plain-text fix (24b9a39); fix commits 3d96d6b, 5247a95 (per commit messages) |
 | system_monitor server | `servers/system_monitor/` | 5 read-only MCP tools plus 2 SessionStart hook scripts | 146-line `server.py`, `pyproject.toml`, `uv.lock`; no tracked tests |
 | web_search server | `servers/web_search/` | 1 read-only MCP tool (Brave Search API), scout only | 94-line `server.py`, `pyproject.toml`, `uv.lock` (`fastmcp>=3.2.0,<4`); 29 offline checks and stdio startup without a key (per build log); no live Brave call; no tracked tests |
-| Coordinator | `coordinator/` | Agent SDK loop: hop sequencing, 3-part acceptance check, Validator, HITL gates | Five modules, README with flags; manual is the default, coordinator chosen per task by the owner (`workers/MODE_SELECTION_PROTOCOL.md`); no tracked tests |
+| Coordinator | `coordinator/` | Agent SDK loop: hop sequencing, 3-part acceptance check, Validator, HITL gates | Five modules, README with flags; manual is the default, coordinator chosen per task by the owner (`workers/MODE_SELECTION_PROTOCOL.md`); 22 offline tests for the blocked-fetch path only (`coordinator/tests/`, 2026-11-09), nothing else tested |
 | Pipeline | `pipeline/` | Five phase files and a run-contract spec | Phase files and `scripts/check_pipeline_run.py` exist; backfill rule added in 71b9b42 (per commit message) |
 | Maintenance scripts | `scripts/` | KB staleness, server freshness, markdown length, pipeline run checks, grounding quote checker, import-versus-kb checker | Six scripts; tests for the grounding and import checkers in `scripts/tests/`; weekly schedule stated in `CLAUDE.md`, cron entry not tracked |
 | Onboarding templates | `*_TEMPLATE.*`, `*.template.json`, `logs/*TEMPLATE*` | Blank versions of gitignored runtime files | Present; the only tracked onboarding path (`.gitignore`) |
@@ -29,7 +29,7 @@
 | The three MCP servers exist with the tools named in the docs | `servers/docs_fetcher/server.py` (11 tools), `servers/system_monitor/server.py` (5 tools), `servers/web_search/server.py` (1 tool) |
 | Servers are reproducibly pinned | `servers/*/uv.lock`, `servers/*/pyproject.toml` (`fastmcp>=3.2.0`; `web_search`: `>=3.2.0,<4`) |
 | A coordinator implementation exists with an automated acceptance check (file exists, required sections, self-critique present) and a read-only Validator | `coordinator/acceptance.py`, `coordinator/orchestrator.py`, `coordinator/worker_registry.py` |
-| Coordinator mode is available per task but untested: standing override lifted 2026-11-09; no tracked tests, failed-fetch path undefined | `workers/MODE_SELECTION_PROTOCOL.md` ("Default") |
+| Coordinator mode is available per task but unproven: standing override lifted 2026-11-09; failed-fetch path (blocked return, owner prompt, resume) built and covered by 22 offline tests, never run live | `workers/MODE_SELECTION_PROTOCOL.md` ("Default") |
 | All five pipeline phase files exist and define their outputs | `pipeline/phases/01_research.md` to `05_publicize.md` |
 | A checker can verify a pipeline run's artifacts, ordering and the human gate | `scripts/check_pipeline_run.py` |
 | Five workers are defined | `workers/{developer,architect,content,researcher,scout}/CLAUDE.md` |
@@ -47,14 +47,14 @@
 - Success, rejection or correction-retry rates for any worker or mode.
 - Cost, token use or elapsed time per task, and the overhead of the checklist and grounding rules. Owner minutes are recorded only from 2026-11-07.
 - Any end-to-end pipeline run (phases 1 to 5) completing with `Human Verdict: APPROVED`.
-- That the coordinator or its Validator work on a real task (the code exists; no tracked tests or results).
+- That the coordinator or its Validator work on a real task (the code exists; tests cover only the blocked-fetch path and use a stubbed `query`; no live run or results).
 - That grounding and staleness rules are followed on every task: `check_grounding.py` and `check_imports.py` run only when invoked at acceptance. Write denies, the sandbox and the fetch cap are enforced; see Known limits.
 - That the weekly cron jobs are installed and running.
 - Fresh-clone setup success: the setup steps in `README.md` have not been run on a fresh clone.
 
 ## Known limits
 
-- Coordinator mode is disabled; every routed task needs a manual session in the worker directory (`workers/MODE_SELECTION_PROTOCOL.md`, `CLAUDE.md`).
+- Manual mode is the default; the coordinator is available per task but has never run live, so its blocked-fetch resume (session ID on resume, resume prompt) is unconfirmed (`workers/MODE_SELECTION_PROTOCOL.md`, `coordinator/README.md`).
 - The five-phase pipeline is built but unused: `pipeline/runs/` has no runs, so its phases, run-contract checker and human-verdict gate have no evidence from real use. Kept for future buildouts (`pipeline/PIPELINE.md`, `scripts/check_pipeline_run.py`).
 - Enforcement is mostly instruction-level. Three exceptions: write denials for protected repo paths in each worker's settings (templates tracked, live files local; verified from all five worker folders on 2026-11-07); sandboxed Bash for the four workers that have Bash (same files; verified from all four folders on 2026-11-07); and the fetch cap in `docs_fetcher`, which applies only to sessions launched with `DOCS_FETCHER_MAX_URLS`. Test isolation in the pipeline is a rule unless the owner adds a `Read(pipeline/runs/**/holdback/**)` deny rule (`pipeline/PIPELINE.md`).
 - The write denials alone do not cover a Python or other subprocess write; the sandbox does (sessions in all four folders had such writes blocked with `Operation not permitted`). The sandbox does not cover the built-in file tools, MCP tools or hooks. `uv run` and network access from worker Bash are blocked unless a task adds them (the `uv` cache is outside the working folder). The escape-hatch setting (`allowUnsandboxedCommands: false`) is unproven, because the auto-mode classifier refused the retry first. `blockWritesOutsideWorkingDirectories` is not used: under Claude Code 2.1.319 it was not reopened by `additionalDirectories`.

@@ -133,6 +133,16 @@ When an acceptance check fails and the user approves a retry, the coordinator pa
 
 One retry is allowed per hop. If the retry also fails, the coordinator escalates to the user and does not auto-close the task.
 
+## Blocked fetch (stop, report, resume)
+
+A worker that cannot fetch a required source ends its run with `"status": "blocked"` and a `blocked_sources` list (`source`, `reason`, optional `candidates`), per the Human-Retrieved Source Protocol in `workers/WORKER_STANDARDS.md`. The coordinator then skips the acceptance check and Validator for that run and asks you, per source: (1) a local file path, (2) a replacement `https://` URL or candidate number, (3) continue without it, (4) abort.
+
+- A local file is **copied** (never moved, never overwriting; `_2`, `_3` on a name clash) into `workers/<worker>/human-retrieved-sources/`.
+- A replacement URL is registered under `<source>_replacement` in `other_sources.json`.
+- The same worker session is resumed with your answers, then the normal acceptance and Validator path runs.
+- At most 2 block-resume cycles per hop (shared with the correction retry). A third block, a missing session ID, or a block during a Validator correction retry stops the hop and prints the manual-mode fallback.
+- Tests: `coordinator/tests/` (stubbed `query`, no network). Run from the repo root: `uv run --with claude-agent-sdk --with pytest python -m pytest coordinator/tests`. Not yet run against a live worker.
+
 ## Module structure
 
 | File | Responsibility |
@@ -140,7 +150,7 @@ One retry is allowed per hop. If the retry also fails, the coordinator escalates
 | `orchestrator.py` | `run(task)` async — main loop, multi-hop sequencing, logging |
 | `worker_registry.py` | Per-worker `ClaudeAgentOptions`; MCP paths resolved from `__file__` |
 | `acceptance.py` | `parse_worker_result()`, `acceptance_check()` |
-| `schemas.py` | `RoutingPrompt`, `WorkerResult`, `AcceptanceResult` dataclasses |
+| `schemas.py` | `RoutingPrompt`, `WorkerResult` (incl. `blocked_sources`), `AcceptanceResult` dataclasses |
 | `__main__.py` | Thin CLI wrapper (`python -m coordinator`) |
 
 ## CLAUDE.md loading

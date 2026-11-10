@@ -88,7 +88,7 @@ Components and what each is (details and maturity signals in [`STATUS.md`](STATU
 - Coordinator program (five modules, used only when the owner chooses it per task): `coordinator/`.
 - Pipeline (five phase files and a run-contract checker; unused, kept for future buildouts): `pipeline/`, `scripts/check_pipeline_run.py`.
 - Maintenance scripts: KB staleness, server freshness, markdown length (<=100 non-empty lines for rule files), pipeline run check, grounding quote checker, import-versus-kb checker (the last two have tests): `scripts/`.
-- Tests: offline pytest suite for `docs_fetcher` (`servers/docs_fetcher/tests/`) and checker tests (`scripts/tests/`).
+- Tests: offline pytest suite for `docs_fetcher` (`servers/docs_fetcher/tests/`) checker tests (`scripts/tests/`) and coordinator tests for the blocked-fetch path (`coordinator/tests/`, stubbed `query`, no live run).
 - Baseline eval protocol: `workers/BASELINE_EVAL_PROTOCOL.md`.
 - `TASTE.md`: standing preferences read by pipeline phases.
 
@@ -133,7 +133,7 @@ The gates sit where an error is expensive or hard to see:
 
 `workers/MODE_SELECTION_PROTOCOL.md` assigns tasks by whether they can run unattended. Coordinator mode fits a complete spec, a defined output format, no mid-task clarification and pre-approvable URLs. Manual mode fits bug fixes, exploratory or iterative work, context-dependent work and unknown URLs, where the user must steer mid-task. The history shows the coordinator was built on the Agent SDK (084eb28) and the two-mode split came in 6d8df9f.
 
-Coordinator mode is available per task, but manual is the default. A standing override from 2026-09-28 told the orchestrator to always recommend manual mode; the stated reason was that the tasks run so far needed owner judgment on sources and acceptance that a hop chain could not give (owner, 2026-10-06). The owner lifted it on 2026-11-09, judging the override and its per-brief record-keeping to be overhead. The six exit criteria no longer gate use, and known limits remain: `coordinator/` has no tracked tests and no defined failed-fetch path. Commit aa8e3e6 paired the override with a requirement to archive manual-mode hand-offs (per its message), and `CLAUDE.md` still requires a copy of each consumed routing prompt in `output/intermediate_outputs/`.
+Coordinator mode is available per task, but manual is the default. A standing override from 2026-09-28 told the orchestrator to always recommend manual mode; the stated reason was that the tasks run so far needed owner judgment on sources and acceptance that a hop chain could not give (owner, 2026-10-06). The owner lifted it on 2026-11-09, judging the override and its per-brief record-keeping to be overhead. The six exit criteria no longer gate use, and known limits remain: `coordinator/` has tests only for the blocked-fetch path and has never run live. Commit aa8e3e6 paired the override with a requirement to archive manual-mode hand-offs (per its message), and `CLAUDE.md` still requires a copy of each consumed routing prompt in `output/intermediate_outputs/`.
 
 ### Why template-plus-local-state
 
