@@ -5,33 +5,12 @@ Triggered when: a new task arrives, after worker classification.
 
 State the recommended mode and reason before routing. The user can override.
 
-## Standing override (active since 2026-09-28)
-Coordinator mode is disabled by standing user instruction. Always recommend **Manual mode**,
-regardless of which Coordinator/Hybrid criteria below would otherwise apply — do not use them to
-select Coordinator. The `coordinator/` program itself is untouched by this override; it is kept in
-the repo, just not invoked by the routing workflow.
-
-**Why:** the tasks run so far needed owner judgment on sources and acceptance that a hop chain
-could not give (owner, 2026-10-06).
-**Intent (owner, 2026-10-23):** manual mode is where the failures a coordinator would hit are found
-and fixed. The goal is Coordinator for eligible tasks, with Manual always available as the fallback.
-**Re-enable:** when all exit criteria below are met, the owner approves replacing this section with
-"Default Manual; Coordinator only for tasks meeting the criteria below, chosen per task by the owner."
-Until then, do not recommend Coordinator.
-**Record while the override holds:** at each brief, still state the Coordinator-eligible call (yes, no or unsure, with the reason against the "use when all of these hold" criteria) and the error-cost rating for the owner to confirm, and carry both into the Track-record entry. The recommendation stays Manual. Eligibility is the orchestrator's assessment, not a question for the owner; only error cost is owner-confirmed. Exit criteria 1 and 2 count only "yes" entries, so unrecorded entries cannot count toward them.
-
-### Exit criteria (all required)
-1. **Acceptance reliability:** the last 5 coordinator-eligible tasks logged no orchestrator acceptance
-   misfire (a real quote flagged as ungrounded, or a misattributed claim passed).
-2. **Brief accuracy:** the same 5 tasks had no brief item the owner had to reverse. Coordinator workers
-   cannot ask mid-task, so a wrong brief goes uncorrected.
-3. **Failed-fetch path:** the coordinator has a defined behaviour for a blocked or wrong page (stop,
-   report, resume). The Human-Retrieved Source Protocol is manual-only today.
-4. **Trial run:** one coordinator run per eligible task type (see Hybrid cases below). The owner reviews
-   the output against what manual mode would have produced, and accepts it with no more corrections than
-   the manual baseline.
-5. **Fallback intact:** a failed coordinator run can be continued in Manual mode from its hop files.
-6. **Tests:** `coordinator/` has tracked tests (the 10-entry revisit in `STATUS.md` has run; coordinator tests are not yet written).
+## Default
+Default **Manual**; Coordinator only for tasks meeting the criteria below, chosen per task by the owner.
+The standing override (2026-09-28 to 2026-11-09) was lifted by the owner on 2026-11-09: the per-brief
+eligibility record and the six exit criteria were overhead, so they no longer gate coordinator use.
+The `coordinator/` program is unchanged; known limits (no tracked tests, failed-fetch path undefined,
+workers cannot ask mid-task) stay listed in `STATUS.md`.
 
 ## Coordinator mode — use when all of these hold
 - Spec is complete and self-contained: worker needs no mid-task clarification
@@ -56,7 +35,7 @@ For manual mode: give the worker directory path and tell the user to open a Clau
 
 In hybrid cases, state the assumption that makes coordinator viable (e.g. "treating the root cause as confirmed per the brief").
 
-## Error cost (applies only after the standing override is lifted)
+## Error cost
 Eligibility and error cost are separate tests. Coordinator mode needs both.
 
 1. **Eligibility** — the "Coordinator mode — use when all of these hold" list above.

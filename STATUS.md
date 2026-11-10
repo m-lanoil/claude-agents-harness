@@ -16,7 +16,7 @@
 | docs_fetcher server | `servers/docs_fetcher/` | 11 MCP tools: source registries, fetch, search, crawl, stats | 538-line `server.py`, `pyproject.toml`, `uv.lock`; 9 offline test files in `tests/` (174 passed on 2026-11-07); fetch cap via `DOCS_FETCHER_MAX_URLS` (06e33f9) and the Markdown/plain-text fix (24b9a39); fix commits 3d96d6b, 5247a95 (per commit messages) |
 | system_monitor server | `servers/system_monitor/` | 5 read-only MCP tools plus 2 SessionStart hook scripts | 146-line `server.py`, `pyproject.toml`, `uv.lock`; no tracked tests |
 | web_search server | `servers/web_search/` | 1 read-only MCP tool (Brave Search API), scout only | 94-line `server.py`, `pyproject.toml`, `uv.lock` (`fastmcp>=3.2.0,<4`); 29 offline checks and stdio startup without a key (per build log); no live Brave call; no tracked tests |
-| Coordinator | `coordinator/` | Agent SDK loop: hop sequencing, 3-part acceptance check, Validator, HITL gates | Five modules, README with flags; **disabled by standing override** in `workers/MODE_SELECTION_PROTOCOL.md`; no tracked tests |
+| Coordinator | `coordinator/` | Agent SDK loop: hop sequencing, 3-part acceptance check, Validator, HITL gates | Five modules, README with flags; manual is the default, coordinator chosen per task by the owner (`workers/MODE_SELECTION_PROTOCOL.md`); no tracked tests |
 | Pipeline | `pipeline/` | Five phase files and a run-contract spec | Phase files and `scripts/check_pipeline_run.py` exist; backfill rule added in 71b9b42 (per commit message) |
 | Maintenance scripts | `scripts/` | KB staleness, server freshness, markdown length, pipeline run checks, grounding quote checker, import-versus-kb checker | Six scripts; tests for the grounding and import checkers in `scripts/tests/`; weekly schedule stated in `CLAUDE.md`, cron entry not tracked |
 | Onboarding templates | `*_TEMPLATE.*`, `*.template.json`, `logs/*TEMPLATE*` | Blank versions of gitignored runtime files | Present; the only tracked onboarding path (`.gitignore`) |
@@ -29,7 +29,7 @@
 | The three MCP servers exist with the tools named in the docs | `servers/docs_fetcher/server.py` (11 tools), `servers/system_monitor/server.py` (5 tools), `servers/web_search/server.py` (1 tool) |
 | Servers are reproducibly pinned | `servers/*/uv.lock`, `servers/*/pyproject.toml` (`fastmcp>=3.2.0`; `web_search`: `>=3.2.0,<4`) |
 | A coordinator implementation exists with an automated acceptance check (file exists, required sections, self-critique present) and a read-only Validator | `coordinator/acceptance.py`, `coordinator/orchestrator.py`, `coordinator/worker_registry.py` |
-| Coordinator mode is currently disabled | `workers/MODE_SELECTION_PROTOCOL.md` ("Standing override (active since 2026-09-28)") |
+| Coordinator mode is available per task but untested: standing override lifted 2026-11-09; no tracked tests, failed-fetch path undefined | `workers/MODE_SELECTION_PROTOCOL.md` ("Default") |
 | All five pipeline phase files exist and define their outputs | `pipeline/phases/01_research.md` to `05_publicize.md` |
 | A checker can verify a pipeline run's artifacts, ordering and the human gate | `scripts/check_pipeline_run.py` |
 | Five workers are defined | `workers/{developer,architect,content,researcher,scout}/CLAUDE.md` |
