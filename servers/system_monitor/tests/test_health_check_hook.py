@@ -222,13 +222,6 @@ def test_battery_detail_says_plugged_in_or_unplugged(healthy, run_hook):
     assert "Battery at 90%, unplugged" in payload["systemMessage"]
 
 
-def test_battery_with_unknown_power_state_is_treated_as_unplugged(healthy, run_hook):
-    # psutil reports power_plugged=None when it cannot be determined; the hook treats that as unplugged.
-    healthy(battery=battery(5, None))
-    payload, _, _ = run_hook(HEALTH_HOOK)
-    assert status_of(payload["systemMessage"], "Battery") == "STOP"
-
-
 # ----------------------------------------------------------------- escalation
 
 

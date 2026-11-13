@@ -95,7 +95,13 @@ if battery is None:
 else:
     pct = round(battery.percent, 1)
     plugged = battery.power_plugged
-    if not plugged and pct <= 10:
+    if plugged is None:
+        msg = f"Battery at {pct}%, power state unknown"
+        if pct <= 20:
+            s, tip = "WARN", "Connect charger soon"
+        else:
+            s, tip = "GO", None
+    elif not plugged and pct <= 10:
         s, msg = "STOP", f"Battery critically low at {pct}%"
         tip = "Plug in charger immediately"
     elif not plugged and pct <= 20:
