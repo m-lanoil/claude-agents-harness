@@ -14,7 +14,8 @@ PATTERNS = [
 
 
 def count_nonempty(path):
-    return sum(1 for line in path.read_text().splitlines() if line.strip())
+    text = path.read_text(encoding="utf-8", errors="replace")
+    return sum(1 for line in text.splitlines() if line.strip())
 
 
 def main():
