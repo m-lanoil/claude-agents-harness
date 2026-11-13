@@ -71,10 +71,19 @@ def _preregister_urls(approved_urls_json: str | None) -> None:
     except json.JSONDecodeError as exc:
         print(f"[preregister_urls] WARNING: could not parse --approved-urls JSON: {exc}")
         return
+    if not isinstance(approved, dict):
+        print("[preregister_urls] WARNING: --approved-urls JSON must be an object; nothing registered.")
+        return
 
     for key, filename in _REGISTRY_FILES.items():
         entries = approved.get(key)
         if not entries:
+            continue
+        if not isinstance(entries, dict):
+            print(
+                f"[preregister_urls] WARNING: '{key}' must be an object mapping "
+                "name to URL; skipped."
+            )
             continue
         registry_path = _DOCS_FETCHER_DIR / filename
         if registry_path.exists():
@@ -249,6 +258,13 @@ async def _run_single_hop(
         )
     else:
         result.session_id = session_id
+        # A relative deliverable path is relative to the worker's cwd (its own
+        # directory), not the repo root. Make it absolute once, here, so the
+        # acceptance check and the Validator prompt read the same file.
+        # Empty and non-string values are left for acceptance_check to reject.
+        raw_path = result.deliverable_path
+        if isinstance(raw_path, str) and raw_path.strip() and not Path(raw_path).is_absolute():
+            result.deliverable_path = str((WORKER_DIRS[routing.worker] / raw_path).resolve())
 
     if result.status == "blocked":
         return None, result
@@ -409,6 +425,7 @@ async def _run_hop_handling_blocks(
     routing: RoutingPrompt,
     full_prompt: str,
     budget: _BlockBudget,
+    resume_session: Optional[str] = None,
 ) -> Optional[tuple[AcceptanceResult, WorkerResult]]:
     """Run a hop; on a blocked return, ask the owner and resume the same session.
 
@@ -416,7 +433,7 @@ async def _run_hop_handling_blocks(
     None if the hop must stop (owner aborted, no session to resume, or the
     block-resume cap was exceeded). `budget` is shared by every call for the hop.
     """
-    check, result = await _run_single_hop(routing, full_prompt)
+    check, result = await _run_single_hop(routing, full_prompt, resume_session)
     while result.status == "blocked":
         if budget.used >= _MAX_BLOCK_RESUMES:
             _present_blocked_sources(result)
@@ -562,7 +579,7 @@ async def _handle_validator_result(
     """
     print(f"\n[Validator] {validator_result.summary}")
 
-    if validator_result.verdict == "pass":
+    if validator_result.verdict.strip().lower() == "pass":
         if validator_result.confidence >= _VALIDATOR_CONFIDENCE_THRESHOLD:
             print(f"[Validator] PASS (confidence: {validator_result.confidence:.2f})")
             return True
@@ -576,8 +593,12 @@ async def _handle_validator_result(
         return True
 
     # verdict == "fail"
-    critical = [i for i in validator_result.issues if i.get("severity") == "critical"]
-    minor = [i for i in validator_result.issues if i.get("severity") == "minor"]
+    # Fail closed: only an explicit "minor" is minor; any other severity is critical.
+    minor = [
+        i for i in validator_result.issues
+        if str(i.get("severity", "")).strip().lower() == "minor"
+    ]
+    critical = [i for i in validator_result.issues if i not in minor]
 
     print("\n[Validator] FAIL")
     if critical:
@@ -589,8 +610,11 @@ async def _handle_validator_result(
         for issue in minor:
             print(f"    • [{issue.get('section', 'global')}] {issue.get('description', '')}")
 
-    if not critical:
-        # Soft gate: minor issues only — user decides whether to proceed
+    if not validator_result.issues:
+        print("  No issues listed for a failing verdict; treating it as critical.")
+
+    if minor and not critical:
+        # Soft gate: every issue is explicitly minor — user decides whether to proceed
         print(f"\n[Validator] Advisory: {len(minor)} minor issue(s). Core task appears addressed.")
         choice = input("Continue despite minor issues? (yes / abort): ").strip().lower()
         if choice != "yes":
@@ -627,6 +651,7 @@ async def _handle_validator_result(
         required_sections=routing.required_sections,
         hop_index=routing.hop_index,
         total_hops=routing.total_hops,
+        hop_context=routing.hop_context,
     )
     correction_prompt = base_prompt + f"\n\n{correction_brief}"
     correction_approved = _present_for_approval(correction_prompt, label="SEMANTIC CORRECTION PROMPT")
@@ -661,7 +686,7 @@ async def _handle_validator_result(
     # Re-run Validator on corrected deliverable
     retry_validator = await _invoke_validator(routing, retry_result)
     print(f"\n[Validator] Retry result: {retry_validator.summary}")
-    if retry_validator.verdict != "pass":
+    if retry_validator.verdict.strip().lower() != "pass":
         print("\n[Validator] Retry also failed. Escalating to user.")
         _append_worker_updates_log(
             routing.worker,
@@ -732,6 +757,7 @@ async def _execute_chain(
             required_sections=required_sections if hop_idx == total_hops - 1 else [],
             hop_index=hop_idx,
             total_hops=total_hops,
+            hop_context=hop_context,
         )
 
         full_prompt = build_routing_prompt(
@@ -774,7 +800,9 @@ async def _execute_chain(
                 print("Escalating to user — task not closed.")
                 return False
 
-            outcome = await _run_hop_handling_blocks(routing, retry_approved, block_budget)
+            outcome = await _run_hop_handling_blocks(
+                routing, retry_approved, block_budget, resume_session=result.session_id
+            )
             if outcome is None:
                 return False
             check, result = outcome
@@ -862,6 +890,10 @@ async def run(
     else:
         worker_input = input("Enter worker name or multi-hop chain (e.g. 'architect,developer'): ").strip().lower()
     hop_workers = [w.strip() for w in worker_input.split(",") if w.strip()]
+
+    if not hop_workers:
+        print("No workers specified. Aborting.")
+        return
 
     unknown = [w for w in hop_workers if w not in WORKER_DIRS]
     if unknown:

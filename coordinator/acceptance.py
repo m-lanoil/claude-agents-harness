@@ -63,17 +63,29 @@ def parse_worker_result(raw_text: str) -> Optional[WorkerResult]:
 
 def acceptance_check(result: WorkerResult, routing: RoutingPrompt) -> AcceptanceResult:
     """Three-part automated acceptance check per architecture spec section 3."""
-    # Step 1: file existence
-    target = Path(result.deliverable_path)
-    if not target.is_absolute():
-        target = (_REPO_ROOT / result.deliverable_path).resolve()
-    file_exists = target.exists()
+    # Step 1: file existence. A null, non-string or empty path, or a path that is
+    # not a regular file (e.g. a directory), counts as "does not exist".
+    raw_path = result.deliverable_path
+    path_valid = isinstance(raw_path, str) and bool(raw_path.strip())
+    target: Optional[Path] = None
+    if path_valid:
+        target = Path(raw_path)
+        if not target.is_absolute():
+            target = (_REPO_ROOT / raw_path).resolve()
+    file_exists = target is not None and target.is_file()
 
     # Step 2: spec match — section-level scan of required headers
     spec_match = True
+    unreadable = False
+    content = ""
     if file_exists and routing.required_sections:
-        content = target.read_text(encoding="utf-8").lower()
-        spec_match = all(s.lower() in content for s in routing.required_sections)
+        try:
+            content = target.read_text(encoding="utf-8").lower()
+        except UnicodeDecodeError:
+            unreadable = True
+            spec_match = False
+        else:
+            spec_match = all(s.lower() in content for s in routing.required_sections)
 
     # Step 3: self-critique presence
     self_critique_present = (
@@ -87,10 +99,15 @@ def acceptance_check(result: WorkerResult, routing: RoutingPrompt) -> Acceptance
     correction_brief: Optional[str] = None
     if not passed:
         issues: list[str] = []
-        if not file_exists:
-            issues.append(f"deliverable not found at '{result.deliverable_path}'")
+        if not path_valid:
+            issues.append(
+                f"deliverable_path is missing, empty or not a string: {raw_path!r}"
+            )
+        elif not file_exists:
+            issues.append(f"deliverable not found at '{raw_path}'")
+        elif unreadable:
+            issues.append("cannot scan sections: file is not readable as UTF-8 text")
         elif not spec_match:
-            content = target.read_text(encoding="utf-8").lower()
             missing = [s for s in routing.required_sections if s.lower() not in content]
             issues.append(f"missing required sections: {missing}")
         if not self_critique_present:

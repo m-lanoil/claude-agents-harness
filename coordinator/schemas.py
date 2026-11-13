@@ -10,6 +10,7 @@ class RoutingPrompt:
     required_sections: List[str] = field(default_factory=list)
     hop_index: int = 0
     total_hops: int = 1
+    hop_context: Optional[str] = None
 
 
 @dataclass
