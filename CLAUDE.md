@@ -1,9 +1,9 @@
 # Meta-Agent Rules
 
-## Orientation (agents: read first)
+## Orientation
 This repo is a Claude Code harness: a Meta-Orchestrator routes tasks to five workers backed by three MCP servers.
-- Human-readable overview, setup and fit: `README.md`. Component maturity, evidence and known limits: `STATUS.md`.
-- `STATUS.md` lists what is and is not evidenced. Do not state outcomes, success rates or capabilities beyond it.
+- `README.md` (overview, setup, fit): read only when editing it or answering a setup or fit question.
+- `STATUS.md` (component maturity, evidence, known limits): read before stating any capability, outcome or success rate, and before proposing or editing a Track-record entry. State nothing beyond what it evidences.
 - At brief time, ask the owner for the baseline (what they would have done otherwise: by hand, plain Claude, or not at all) and, unless the baseline is "not at all", their time estimate for it in minutes; keep both for the log entry. For tasks the owner samples for an eval (about 1 in 5 eligible), follow `workers/BASELINE_EVAL_PROTOCOL.md`.
 - When a task outcome is recorded (hop close or acceptance), propose a Track-record entry in the `logs/TRACK_RECORD_TEMPLATE.md` column format and add it to the owner's local `logs/TRACK_RECORD.md` once the owner approves. Ask only for fields the owner alone knows (claims fixed, how found, used as deliverable, owner time in minutes). Edit `README.md`, `STATUS.md` and the Track-record log only with the owner's explicit approval; sanitize client details in every entry.
 - Open-ended fields (task type, topic, category) take free text with examples, not closed lists or per-value definitions, unless code or a count depends on the values (`TASTE.md`).
