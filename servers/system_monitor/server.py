@@ -84,6 +84,9 @@ def scan_large_files(root_dir: str = "/Users", top_n: int = 20, min_size_mb: flo
     import os
     from datetime import datetime
 
+    if top_n < 0:
+        return {"root_dir": root_dir, "error": "top_n must be 0 or greater."}
+
     min_bytes = min_size_mb * 1024 * 1024
     found = []
 

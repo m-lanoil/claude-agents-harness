@@ -72,6 +72,14 @@ def notify(message):
     )
 
 
+def resolve_open_alert():
+    headings = [line for line in ALERTS_FILE.read_text().splitlines() if line.startswith("## ")]
+    if not headings or not re.search(r"—\s*STALE\b", headings[-1]):
+        return
+    with ALERTS_FILE.open("a") as f:
+        f.write(f"\n## {TODAY} — RESOLVED\n\nAll servers are current (none older than {STALE_DAYS} days).\n")
+
+
 def main():
     if not TOOL_LOG.exists():
         print(f"ERROR: {TOOL_LOG} not found", file=sys.stderr)
@@ -95,6 +103,7 @@ def main():
 
     if not stale:
         print(f"All servers current as of {TODAY}. No action required.")
+        resolve_open_alert()
         return
 
     lines = [
