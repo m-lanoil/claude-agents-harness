@@ -14,11 +14,12 @@
 | Researcher worker | `workers/researcher/CLAUDE.md`, `workers/RESEARCH_REPORT_PROTOCOL.md` | Pre-task planning docs; research reports from owner-approved sources (report mode) | `CLAUDE.md` plus report protocol; report mode has never run on a real task; settings template with write-path denies and sandboxed Bash (verified live 2026-11-07) |
 | Scout worker | `workers/scout/CLAUDE.md` | Source discovery by web search for owner approval; no fetching | `CLAUDE.md` only; ran live in the 2026-10-22 Track-record task; whole-tool denies (WebFetch, WebSearch, Bash) and protected-path write denies verified live 2026-11-07 |
 | docs_fetcher server | `servers/docs_fetcher/` | 11 MCP tools: source registries, fetch, search, crawl, stats | 538-line `server.py`, `pyproject.toml`, `uv.lock`; 9 offline test files in `tests/` (174 passed on 2026-11-07); fetch cap via `DOCS_FETCHER_MAX_URLS` (06e33f9) and the Markdown/plain-text fix (24b9a39); fix commits 3d96d6b, 5247a95 (per commit messages) |
-| system_monitor server | `servers/system_monitor/` | 5 read-only MCP tools plus 2 SessionStart hook scripts | 146-line `server.py`, `pyproject.toml`, `uv.lock`; no tracked tests |
-| web_search server | `servers/web_search/` | 1 read-only MCP tool (Brave Search API), scout only | 94-line `server.py`, `pyproject.toml`, `uv.lock` (`fastmcp>=3.2.0,<4`); 29 offline checks and stdio startup without a key (per build log); no live Brave call; no tracked tests |
+| system_monitor server | `servers/system_monitor/` | 5 read-only MCP tools plus 2 SessionStart hook scripts | 146-line `server.py`, `pyproject.toml`, `uv.lock`; tracked offline tests for the server tools and both hook scripts (`servers/system_monitor/tests/`, 48 test functions, first run 2026-11-12: pass) |
+| web_search server | `servers/web_search/` | 1 read-only MCP tool (Brave Search API), scout only | 94-line `server.py`, `pyproject.toml`, `uv.lock` (`fastmcp>=3.2.0,<4`); 29 offline checks and stdio startup without a key (per build log); no live Brave call; tracked offline tests (`servers/web_search/tests/`, 22 test functions, first run 2026-11-12: pass) |
 | Coordinator | `coordinator/` | Agent SDK loop: hop sequencing, 3-part acceptance check, Validator, HITL gates | Five modules, README with flags; manual is the default, coordinator chosen per task by the owner (`workers/MODE_SELECTION_PROTOCOL.md`); 180 offline tests with a stubbed `query` (`coordinator/tests/`, 2026-11-12): blocked-fetch path, acceptance, prompts, Validator flow, multi-hop chain, registry and CLI; three live single-hop runs on 2026-11-12 (see Evidence) |
 | Pipeline | `pipeline/` | Five phase files and a run-contract spec | Phase files and `scripts/check_pipeline_run.py` exist; backfill rule added in 71b9b42 (per commit message) |
-| Maintenance scripts | `scripts/` | KB staleness, server freshness, markdown length, pipeline run checks, grounding quote checker, import-versus-kb checker | Six scripts; tests for the grounding and import checkers in `scripts/tests/`; weekly schedule stated in `CLAUDE.md`, cron entry not tracked |
+| Maintenance scripts | `scripts/` | KB staleness, server freshness, markdown length, pipeline run checks, grounding quote checker, import-versus-kb checker | Six scripts; tests for the grounding, import, server-freshness and markdown-length checkers in `scripts/tests/`; no tests for `check_kb_staleness.py` or `check_pipeline_run.py`; weekly schedule stated in `CLAUDE.md`, cron entry not tracked |
+| Test runner and CI | `scripts/run_tests.py`, `.github/workflows/tests.yml`, `tests/test_templates.py` | One command runs all six suites, each in its own `uv` environment; a workflow runs it on push and pull request; template tests check that config templates parse and agree with the Workers table | All six suites passed on the first owner run on 2026-11-12. The workflow passed on GitHub on 2026-11-12 (push and pull request runs on PR #3). No check that the new tests catch real bugs |
 | Onboarding templates | `*_TEMPLATE.*`, `*.template.json`, `logs/*TEMPLATE*` | Blank versions of gitignored runtime files | Present; the only tracked onboarding path (`.gitignore`) |
 | Taste config | `TASTE.md` | Standing preferences read by every pipeline phase | Some items marked *(default)* = unconfirmed assumptions |
 
@@ -27,7 +28,7 @@
 | Claim | Evidence |
 |---|---|
 | The three MCP servers exist with the tools named in the docs | `servers/docs_fetcher/server.py` (11 tools), `servers/system_monitor/server.py` (5 tools), `servers/web_search/server.py` (1 tool) |
-| Servers are reproducibly pinned | `servers/*/uv.lock`, `servers/*/pyproject.toml` (`fastmcp>=3.2.0`; `web_search`: `>=3.2.0,<4`) |
+| Servers are reproducibly pinned | `servers/*/uv.lock`, `servers/*/pyproject.toml` (`fastmcp>=3.2.0,<4` in all three) |
 | A coordinator implementation exists with an automated acceptance check (file exists, required sections, self-critique present) and a read-only Validator | `coordinator/acceptance.py`, `coordinator/orchestrator.py`, `coordinator/worker_registry.py` |
 | Coordinator mode is available per task but lightly proven: standing override lifted 2026-11-09; 180 offline tests (stubbed `query`) pass; three live single-hop Developer runs on 2026-11-12 on internal tasks (two accepted, one wrongly failed by the acceptance check because of a path-base defect, since fixed); the blocked-fetch resume has not run live | `workers/MODE_SELECTION_PROTOCOL.md` ("Default"), `coordinator/tests/`, `logs/worker_updates.md` (2026-11-12 entries) |
 | All five pipeline phase files exist and define their outputs | `pipeline/phases/01_research.md` to `05_publicize.md` |
@@ -39,11 +40,11 @@
 | Quote and import checkers exist with tests | `scripts/check_grounding.py`, `scripts/check_imports.py`, `scripts/tests/` |
 | Write denies and sandboxed Bash blocked test writes from the worker folders | Track-record entries dated 2026-11-07 |
 | Fetch cap refuses over-budget fetches | Owner-run live check, Track-record entry dated 2026-11-07 |
-| 16 owner-reported, sanitized task outcomes | Owner's local Track-record log (not tracked) |
+| Owner-reported, sanitized task outcomes | Owner's local Track-record log (not tracked) |
 
 ## Not yet evidenced
 
-- Outcomes beyond the 16 owner-reported Track-record entries; no outputs, logs or run artifacts are tracked, so entries cannot be re-checked from the repo.
+- Outcomes beyond the owner-reported Track-record entries; no outputs, logs or run artifacts are tracked, so entries cannot be re-checked from the repo.
 - Success, rejection or correction-retry rates for any worker or mode.
 - Cost, token use or elapsed time per task, and the overhead of the checklist and grounding rules. Owner minutes are recorded only from 2026-11-07.
 - Any end-to-end pipeline run (phases 1 to 5) completing with `Human Verdict: APPROVED`.
