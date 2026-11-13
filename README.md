@@ -30,7 +30,7 @@ This section is derived from the rules in the tracked files. It is not a claim a
 
 ### Not a good fit
 - Quick one-off edits. Every task starts with a six-step checklist, and code needs a kb file per import and shell command (<=30 days old) before any code is written (`CLAUDE.md`, `workers/developer/CLAUDE.md`). That is the process-overhead cost.
-- Fully unattended runs. Prompt approval, gap acknowledgment and correction-retry gates always pause for a human (`coordinator/README.md`), and coordinator mode is currently disabled (`workers/MODE_SELECTION_PROTOCOL.md`).
+- Fully unattended runs. Prompt approval, gap acknowledgment and correction-retry gates always pause for a human (`coordinator/README.md`), and the coordinator has never run live (`STATUS.md`).
 - Work that needs unregistered URLs on the fly. Workers may fetch only registered or briefed URLs and must flag others (`workers/WORKER_STANDARDS.md`).
 - Anyone who needs results on day one. Only a small owner-reported log exists (see `STATUS.md`).
 
@@ -147,7 +147,7 @@ The history shows this was a deliberate reset: a full working-state archive (306
 - **KB maintenance.** Each kb file carries a 30-day staleness rule, and weekly scripts report it (`workers/WORKER_STANDARDS.md`; `CLAUDE.md` steps 4-5). The cache is gitignored, so it must be rebuilt on a new machine.
 - **Instruction-level enforcement.** Grounding and staleness are rules the model follows; `check_grounding.py` and `check_imports.py` check quotes and imports only when run at acceptance. Write denies, sandboxed Bash and the fetch cap are enforced (`STATUS.md`). `pipeline/PIPELINE.md` says test isolation is instruction-level unless the owner adds a deny rule.
 - **Single-operator assumption.** The approval gates, local-only logs and manual session hand-off assume one person doing the routing. Inferred from `.gitignore`, `CLAUDE.md` and `coordinator/README.md`: nothing covers concurrent operators or shared state.
-- **Manual mode cost.** With the coordinator disabled, each hop needs the user to open a worker session and read a prompt file, and the hop record is created by hand (`CLAUDE.md`).
+- **Manual mode cost.** Manual is the default, and the coordinator is unproven (`STATUS.md`), so each hop usually needs the user to open a worker session and read a prompt file, and the hop record is created by hand (`CLAUDE.md`).
 - **Markdown cap.** Rule files are limited to 100 non-empty lines (`TASTE.md`; `scripts/check_markdown_length.py`). This keeps rules readable but forces detail into separate protocol files, which adds the cost of finding them.
 - **Instruction drift.** Rules live in prose across about 30 tracked markdown files, and the same rule is sometimes repeated. The history includes trims (c638a1a) and a cleanup of agent artifacts (d432e69).
 - **Open decisions the design does not settle.** Whether to re-enable coordinator mode and on what criteria; whether to add a hard deny rule for pipeline test isolation (worker write paths already have one); whether the grounding checks should run automatically instead of by hand.
