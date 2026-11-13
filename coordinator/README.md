@@ -1,7 +1,7 @@
 # coordinator/
 
 Automated orchestration loop for the `claude_agents` multi-agent harness.
-Implements the architecture described in `output/intermediate_outputs/coordinator-dev/coordinator_loop_architecture.md` (a local, gitignored design doc; absent from a fresh clone).
+Behaviour and design decisions are documented below.
 
 ## How to run
 

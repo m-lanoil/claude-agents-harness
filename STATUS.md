@@ -64,7 +64,6 @@
 - The scout and `web_search` chain ran live on 2026-10-22 (the search key failed first and was then fixed), and the scout's deny rules on built-in tools were verified live on 2026-11-07; key delivery in coordinator mode is unverified, and the Researcher's report mode has no real run (`workers/scout/CLAUDE.md`, `workers/RESEARCH_REPORT_PROTOCOL.md`).
 - Runtime state is local-only: a fresh clone has no kb, logs, outputs, registries, MCP config or hooks until set up from templates (`.gitignore`).
 - Rule markdown is capped at 100 non-empty lines per file (`TASTE.md`, `scripts/check_markdown_length.py`).
-- `coordinator/README.md` refers to `output/intermediate_outputs/coordinator-dev/coordinator_loop_architecture.md`, a local gitignored design doc that a fresh clone does not have (the README now says so).
 
 ## Track-record log
 
