@@ -61,12 +61,19 @@ def web_search(query: str, count: int = 10, offset: int = 0, freshness: str = ""
         response = httpx.get(SEARCH_URL, params=params, headers=headers, timeout=TIMEOUT_SECONDS)
         response.raise_for_status()
         data = response.json()
+    except ValueError:
+        raise ToolError(
+            f"Brave Search returned a response that is not valid JSON: {response.text[:ERROR_BODY_CHARS]}"
+        )
     except httpx.HTTPStatusError as e:
         raise ToolError(
             f"Brave Search returned HTTP {e.response.status_code}: {e.response.text[:ERROR_BODY_CHARS]}"
         )
     except httpx.RequestError as e:
         raise ToolError(f"Request to Brave Search failed: {type(e).__name__}")
+
+    if not isinstance(data, dict):
+        raise ToolError("Brave Search returned an unexpected response shape.")
 
     query_info = data.get("query") or {}
     web = data.get("web") or {}
