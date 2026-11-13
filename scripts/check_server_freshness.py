@@ -65,11 +65,15 @@ def ensure_header():
 
 
 def notify(message):
-    subprocess.run(
-        ["osascript", "-e",
-         f'display notification "{message}" with title "Server Freshness Alert"'],
-        check=False,
-    )
+    escaped = message.replace("\\", "\\\\").replace('"', '\\"')
+    try:
+        subprocess.run(
+            ["osascript", "-e",
+             f'display notification "{escaped}" with title "Server Freshness Alert"'],
+            check=False,
+        )
+    except OSError as exc:
+        print(f"notification skipped: {exc}", file=sys.stderr)
 
 
 def resolve_open_alert():
