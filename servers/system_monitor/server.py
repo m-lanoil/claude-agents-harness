@@ -11,16 +11,17 @@ def get_cpu_stats() -> dict:
     Includes system-wide percent, per-core percent, core counts, and frequency.
     Note: blocks for 1 second to get an accurate reading.
     """
+    freq = psutil.cpu_freq()
     return {
         "cpu_percent": psutil.cpu_percent(interval=1),
         "cpu_percent_per_core": psutil.cpu_percent(interval=1, percpu=True),
         "logical_cores": psutil.cpu_count(logical=True),
         "physical_cores": psutil.cpu_count(logical=False),
         "cpu_freq_mhz": {
-            "current": psutil.cpu_freq().current,
-            "min": psutil.cpu_freq().min,
-            "max": psutil.cpu_freq().max,
-        } if psutil.cpu_freq() else None,
+            "current": freq.current,
+            "min": freq.min,
+            "max": freq.max,
+        } if freq else None,
     }
 
 
@@ -125,6 +126,9 @@ def get_directory_size(path: str) -> dict:
     Run du -sk on a directory and return its disk usage.
     Reports size in kilobytes (1024-byte blocks) and megabytes.
     Read-only. Returns an error key if the path is inaccessible.
+    If du reports errors but still prints a total (for example an unreadable
+    subfolder), the result includes partial: true and a warning, and the size
+    undercounts.
     """
     import subprocess
 
@@ -133,16 +137,22 @@ def get_directory_size(path: str) -> dict:
         capture_output=True,
         text=True,
     )
-    if result.returncode != 0:
-        return {"path": path, "error": result.stderr.strip()}
-
+    stderr = result.stderr.strip()
     line = result.stdout.strip()
-    size_kb = int(line.split("\t", 1)[0])
-    return {
+    try:
+        size_kb = int(line.split("\t", 1)[0])
+    except ValueError:
+        return {"path": path, "error": stderr or "du produced no usable output"}
+
+    data = {
         "path": path,
         "size_kb": size_kb,
         "size_mb": round(size_kb / 1024, 2),
     }
+    if result.returncode != 0:
+        data["partial"] = True
+        data["warning"] = stderr
+    return data
 
 
 if __name__ == "__main__":
