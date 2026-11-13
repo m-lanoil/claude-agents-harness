@@ -88,7 +88,7 @@ Components and what each is (details and maturity signals in [`STATUS.md`](STATU
 - Coordinator program (five modules, used only when the owner chooses it per task): `coordinator/`.
 - Pipeline (five phase files and a run-contract checker; unused, kept for future buildouts): `pipeline/`, `scripts/check_pipeline_run.py`.
 - Maintenance scripts: KB staleness, server freshness, markdown length (<=100 non-empty lines for rule files), pipeline run check, grounding quote checker, import-versus-kb checker (the last two have tests): `scripts/`.
-- Tests: offline pytest suites for the three servers (`servers/*/tests/`, including the `system_monitor` hooks), the checker scripts that have tests (`scripts/tests/`), config templates (`tests/`) and the coordinator (180, `coordinator/tests/`, stubbed `query`; the live runs are not part of the suite). Run all of them with `uv run python scripts/run_tests.py`; `.github/workflows/tests.yml` runs the same command on push and pull request (not yet run on GitHub).
+- Tests: offline pytest suites for the three servers (`servers/*/tests/`, including the `system_monitor` hooks), the checker scripts that have tests (`scripts/tests/`), config templates (`tests/`) and the coordinator (180, `coordinator/tests/`, stubbed `query`; the live runs are not part of the suite). Run all of them with `uv run python scripts/run_tests.py`; `.github/workflows/tests.yml` runs the same command on push and pull request.
 - Baseline eval protocol: `workers/BASELINE_EVAL_PROTOCOL.md`.
 - `TASTE.md`: standing preferences read by pipeline phases.
 
