@@ -70,11 +70,15 @@ def notify(stale):
     msg = f"{len(stale)} stale kb file(s) — oldest: {oldest[1]}"
     if len(msg) > 100:
         msg = f"{len(stale)} stale kb file(s) — check KB_STALENESS_LOG.md"
-    subprocess.run(
-        ["osascript", "-e",
-         f'display notification "{msg}" with title "KB Staleness Alert"'],
-        check=False,
-    )
+    escaped = msg.replace("\\", "\\\\").replace('"', '\\"')
+    try:
+        subprocess.run(
+            ["osascript", "-e",
+             f'display notification "{escaped}" with title "KB Staleness Alert"'],
+            check=False,
+        )
+    except OSError as exc:
+        print(f"notification skipped: {exc}", file=sys.stderr)
 
 
 def main():
