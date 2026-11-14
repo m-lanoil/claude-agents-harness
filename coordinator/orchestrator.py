@@ -198,22 +198,41 @@ def _build_validator_prompt(routing: RoutingPrompt, result: WorkerResult) -> str
 # Worker invocation
 # ---------------------------------------------------------------------------
 
+def _sdk_error_detail(message) -> Optional[str]:
+    """Return the fixed-format error line for a ResultMessage with is_error set, else None.
+
+    Every field is read with getattr and a default, so a message object that
+    lacks them (a test fake) counts as not an error. A None value prints as None.
+    """
+    if not getattr(message, "is_error", False):
+        return None
+    return (
+        f"SDK error result: subtype={getattr(message, 'subtype', None)}, "
+        f"errors={getattr(message, 'errors', None)}, "
+        f"api_error_status={getattr(message, 'api_error_status', None)}, "
+        f"terminal_reason={getattr(message, 'terminal_reason', None)}"
+    )
+
+
 async def _invoke_worker(
     worker_name: str,
     full_prompt: str,
     resume_session: Optional[str] = None,
-) -> tuple[str, Optional[str]]:
-    """Stream worker output; return (raw_text, session_id).
+) -> tuple[str, Optional[str], Optional[str]]:
+    """Stream worker output; return (raw_text, session_id, error_detail).
 
     session_id is captured from the init SystemMessage for potential correction
     loop resumption (Q5 decision: session resumption enabled). If the init
     message gave none, the ResultMessage session_id is used instead. A result
     of None (the SDK types it str | None) is treated as empty text.
+    error_detail is None unless the ResultMessage has is_error set; then it is
+    the one-line SDK error description from _sdk_error_detail.
     """
     options = build_options(worker_name, resume=resume_session)
     result_text = ""
     session_id: Optional[str] = None
     result_session_id: Optional[str] = None
+    error_detail: Optional[str] = None
 
     async for message in query(prompt=full_prompt, options=options):
         # Capture session ID from init message for correction loop resumption
@@ -224,8 +243,9 @@ async def _invoke_worker(
         if hasattr(message, "result"):
             result_text = message.result or ""
             result_session_id = getattr(message, "session_id", None)
+            error_detail = _sdk_error_detail(message)
 
-    return result_text, session_id or result_session_id
+    return result_text, session_id or result_session_id, error_detail
 
 
 # ---------------------------------------------------------------------------
@@ -239,8 +259,9 @@ async def _run_single_hop(
 ) -> tuple[Optional[AcceptanceResult], WorkerResult]:
     """Invoke worker once; parse result; run acceptance check.
 
-    Returns (AcceptanceResult, WorkerResult). On parse failure, WorkerResult
-    has status='malformed' and acceptance fails automatically.
+    Returns (AcceptanceResult, WorkerResult). On parse failure, or when the SDK
+    result has is_error set, WorkerResult has status='malformed' and acceptance
+    fails automatically.
     A worker that ends with status='blocked' (failed-fetch path) has no
     deliverable to check: acceptance is skipped and the AcceptanceResult is None.
     Callers must handle that case (see _run_hop_handling_blocks).
@@ -248,10 +269,22 @@ async def _run_single_hop(
     (used by _handle_validator_result for semantic correction retries and by
     the blocked-source resume).
     """
-    raw_text, session_id = await _invoke_worker(routing.worker, full_prompt, resume_session)
+    raw_text, session_id, error_detail = await _invoke_worker(
+        routing.worker, full_prompt, resume_session
+    )
 
-    result = parse_worker_result(raw_text)
-    if result is None:
+    # An SDK error result is malformed whatever its text says: the return block
+    # is not parsed, so a valid-looking block cannot pass an errored run.
+    if error_detail:
+        result = WorkerResult(
+            raw_text=raw_text,
+            deliverable_path=routing.expected_output_path,
+            status="malformed",
+            self_critique="",
+            gaps=[error_detail],
+            session_id=session_id,
+        )
+    elif (result := parse_worker_result(raw_text)) is None:
         result = WorkerResult(
             raw_text=raw_text,
             deliverable_path=routing.expected_output_path,
@@ -522,15 +555,33 @@ async def _invoke_validator(routing: RoutingPrompt, result: WorkerResult) -> Val
     and no MCP servers (grounded: kb_claude_agent_sdk.md, §Core interface and
     §ClaudeAgentOptions). Parses the final JSON block from the response using
     _JSON_BLOCK_RE (same pattern as parse_worker_result in acceptance.py).
-    Parse errors are treated as a fail verdict with a single critical issue.
+    Parse errors are treated as a fail verdict with a single critical issue; so
+    is a ResultMessage with is_error set (the issue carries the SDK error detail).
     """
     prompt = _build_validator_prompt(routing, result)
     options = build_validator_options()
 
     raw_text = ""
+    error_detail: Optional[str] = None
     async for message in query(prompt=prompt, options=options):
         if hasattr(message, "result"):
             raw_text = message.result or ""
+            error_detail = _sdk_error_detail(message)
+
+    if error_detail:
+        # An SDK error result fails the validation whatever its text says.
+        print(f"\n[Validator] {error_detail}. Treating as fail.")
+        _append_worker_updates_log(routing.worker, f"validator_fail: {error_detail}")
+        return ValidatorResult(
+            verdict="fail",
+            issues=[{
+                "severity": "critical",
+                "section": "global",
+                "description": error_detail,
+            }],
+            confidence=0.0,
+            summary="Validator session ended with an SDK error result — treating as fail.",
+        )
 
     matches = list(_JSON_BLOCK_RE.finditer(raw_text))
     if matches:

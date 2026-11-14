@@ -13,8 +13,9 @@ Live part (opt-in): one real call that costs a few tokens and needs the owner's
 authentication. It is skipped unless COORDINATOR_LIVE_SDK=1.
 
 Edge cases the SDK types allow are pinned too: a `ResultMessage.result` of None
-counts as empty text, and a missing init session id falls back to the
-ResultMessage session id.
+counts as empty text, a missing init session id falls back to the
+ResultMessage session id, and a `ResultMessage` with `is_error=True` makes the
+hop `malformed` (worker) or a fail verdict (validator) with the SDK error detail.
 
 Run from the repo root:
     uv run --with claude-agent-sdk --with pytest python -m pytest coordinator/tests/test_sdk_contract.py
@@ -55,8 +56,8 @@ def _init(session_id="sess-1") -> SystemMessage:
     return SystemMessage(subtype="init", data={"session_id": session_id})
 
 
-def _result(text="done", session_id="sess-1") -> ResultMessage:
-    return ResultMessage(
+def _result(text="done", session_id="sess-1", **overrides) -> ResultMessage:
+    fields = dict(
         subtype="success",
         duration_ms=1,
         duration_api_ms=1,
@@ -65,6 +66,14 @@ def _result(text="done", session_id="sess-1") -> ResultMessage:
         session_id=session_id,
         result=text,
     )
+    fields.update(overrides)
+    return ResultMessage(**fields)
+
+
+def _error_result(text=None, **overrides) -> ResultMessage:
+    fields = dict(subtype="error_during_execution", is_error=True)
+    fields.update(overrides)
+    return _result(text, **fields)
 
 
 def _fence(data: dict) -> str:
@@ -239,8 +248,10 @@ def test_build_validator_options_sets_exactly_the_expected_non_default_fields():
 
 def test_invoke_worker_returns_result_text_and_session_id(monkeypatch):
     calls = []
-    text, session_id = _invoke_worker([_init("sess-1"), _result("hello")], calls, monkeypatch)
-    assert (text, session_id) == ("hello", "sess-1")
+    text, session_id, error_detail = _invoke_worker(
+        [_init("sess-1"), _result("hello")], calls, monkeypatch
+    )
+    assert (text, session_id, error_detail) == ("hello", "sess-1", None)
     assert len(calls) == 1
     assert calls[0]["prompt"] == "the prompt"
     assert isinstance(calls[0]["options"], ClaudeAgentOptions)
@@ -255,18 +266,18 @@ def test_invoke_worker_passes_resume_through_to_the_options(monkeypatch):
 
 def test_invoke_worker_ignores_a_non_init_system_message(monkeypatch):
     other = SystemMessage(subtype="status", data={"session_id": "not-this-one"})
-    _, session_id = _invoke_worker([other, _init("sess-1"), _result()], [], monkeypatch)
+    _, session_id, _ = _invoke_worker([other, _init("sess-1"), _result()], [], monkeypatch)
     assert session_id == "sess-1"
 
 
 def test_invoke_worker_init_without_session_id_falls_back_to_the_result_session_id(monkeypatch):
     bare = SystemMessage(subtype="init", data={})
-    _, session_id = _invoke_worker([bare, _result(session_id="sess-from-result")], [], monkeypatch)
+    _, session_id, _ = _invoke_worker([bare, _result(session_id="sess-from-result")], [], monkeypatch)
     assert session_id == "sess-from-result"
 
 
 def test_invoke_worker_init_session_id_wins_over_the_result_session_id(monkeypatch):
-    _, session_id = _invoke_worker(
+    _, session_id, _ = _invoke_worker(
         [_init("sess-init"), _result(session_id="sess-from-result")], [], monkeypatch
     )
     assert session_id == "sess-init"
@@ -274,7 +285,7 @@ def test_invoke_worker_init_session_id_wins_over_the_result_session_id(monkeypat
 
 def test_invoke_worker_result_none_is_empty_text(monkeypatch):
     # ResultMessage.result is `str | None`; the orchestrator treats None as "".
-    text, session_id = _invoke_worker([_init("sess-1"), _result(text=None)], [], monkeypatch)
+    text, session_id, _ = _invoke_worker([_init("sess-1"), _result(text=None)], [], monkeypatch)
     assert text == ""
     assert session_id == "sess-1"
 
@@ -294,7 +305,7 @@ def test_result_none_makes_the_hop_malformed(monkeypatch):
 
 def test_no_init_message_uses_the_result_session_id(monkeypatch):
     result = _result("hello", session_id="sess-from-result")
-    text, session_id = _invoke_worker([result], [], monkeypatch)
+    text, session_id, _ = _invoke_worker([result], [], monkeypatch)
     assert text == "hello"
     assert session_id == "sess-from-result"
 
@@ -315,8 +326,95 @@ def test_message_without_a_session_id_attribute_gives_none(monkeypatch):
     class Bare:
         result = "hello"
 
-    _, session_id = _invoke_worker([Bare()], [], monkeypatch)
+    _, session_id, error_detail = _invoke_worker([Bare()], [], monkeypatch)
     assert session_id is None
+    assert error_detail is None  # fakes without is_error are not errors
+
+
+_ERROR_FIELDS = dict(
+    errors=["boom"], api_error_status=529, terminal_reason="blocking_limit"
+)
+_ERROR_DETAIL = (
+    "SDK error result: subtype=error_during_execution, errors=['boom'], "
+    "api_error_status=529, terminal_reason=blocking_limit"
+)
+
+
+def _hop(messages, routing, monkeypatch):
+    monkeypatch.setattr(orchestrator, "query", _fake_query(messages, []))
+    return asyncio.run(orchestrator._run_single_hop(routing, "the prompt"))
+
+
+def _complete_block(path) -> str:
+    return _fence({
+        "deliverable_path": str(path), "status": "complete",
+        "self_critique": "ok", "gaps": [],
+    })
+
+
+def test_invoke_worker_error_result_returns_the_fixed_format_detail(monkeypatch):
+    messages = [_init("sess-1"), _error_result(**_ERROR_FIELDS)]
+    text, session_id, error_detail = _invoke_worker(messages, [], monkeypatch)
+    assert text == ""
+    assert session_id == "sess-1"
+    assert error_detail == _ERROR_DETAIL
+
+
+def test_invoke_worker_error_result_prints_none_values_as_none(monkeypatch):
+    error = _error_result(errors=None, api_error_status=None, terminal_reason=None)
+    _, _, error_detail = _invoke_worker([error], [], monkeypatch)
+    assert error_detail == (
+        "SDK error result: subtype=error_during_execution, errors=None, "
+        "api_error_status=None, terminal_reason=None"
+    )
+
+
+def test_invoke_worker_success_result_has_no_error_detail(monkeypatch):
+    _, _, error_detail = _invoke_worker([_init("sess-1"), _result("hello")], [], monkeypatch)
+    assert error_detail is None
+
+
+def test_error_result_with_no_text_makes_the_hop_malformed_with_the_sdk_detail(monkeypatch):
+    routing = RoutingPrompt(worker="developer", prompt_text="t", expected_output_path="x.md")
+    check, result = _hop([_init("sess-1"), _error_result(**_ERROR_FIELDS)], routing, monkeypatch)
+    assert result.status == "malformed"
+    assert result.gaps == [_ERROR_DETAIL]
+    assert "JSON block not found" not in " ".join(result.gaps)
+    assert result.raw_text == ""
+    assert result.session_id == "sess-1"
+    assert check is not None
+    assert check.passed is False
+    assert check.gaps == [_ERROR_DETAIL]
+
+
+def test_error_result_with_a_valid_return_block_is_still_malformed(monkeypatch, tmp_path):
+    routing, ok = _routing_and_result(tmp_path)
+    error = _error_result(_complete_block(ok.deliverable_path), **_ERROR_FIELDS)
+    check, result = _hop([_init("sess-1"), error], routing, monkeypatch)
+    assert result.status == "malformed"
+    assert result.gaps == [_ERROR_DETAIL]
+    assert result.self_critique == ""
+    assert result.session_id == "sess-1"
+    assert check is not None
+    assert check.passed is False
+
+
+def test_the_same_valid_return_block_passes_when_is_error_is_false(monkeypatch, tmp_path):
+    routing, ok = _routing_and_result(tmp_path)
+    check, result = _hop(
+        [_init("sess-1"), _result(_complete_block(ok.deliverable_path))], routing, monkeypatch
+    )
+    assert result.status == "complete"
+    assert result.gaps == []
+    assert check is not None
+    assert check.passed is True
+
+
+def test_success_result_without_a_return_block_keeps_the_json_block_gap(monkeypatch):
+    routing = RoutingPrompt(worker="developer", prompt_text="t", expected_output_path="x.md")
+    _, result = _hop([_init("sess-1"), _result("no block here")], routing, monkeypatch)
+    assert result.status == "malformed"
+    assert result.gaps == ["Worker return block missing or malformed — JSON block not found"]
 
 
 # ---------------------------------------------------------------------------
@@ -360,6 +458,33 @@ def test_validator_result_none_is_a_parse_error_fail(monkeypatch, tmp_path, log_
     assert "validator_fail: parse error" in log_path.read_text(encoding="utf-8")
 
 
+def test_validator_error_result_with_no_text_is_a_fail_with_the_sdk_detail(monkeypatch, tmp_path, log_path):
+    verdict = _invoke_validator(
+        [_init("v-1"), _error_result(**_ERROR_FIELDS)], [], monkeypatch, tmp_path
+    )
+    assert verdict.verdict == "fail"
+    assert verdict.confidence == 0.0
+    assert len(verdict.issues) == 1
+    assert verdict.issues[0]["severity"] == "critical"
+    assert verdict.issues[0]["description"] == _ERROR_DETAIL
+    assert f"validator_fail: {_ERROR_DETAIL}" in log_path.read_text(encoding="utf-8")
+
+
+def test_validator_error_result_with_a_pass_verdict_is_still_a_fail(monkeypatch, tmp_path, log_path):
+    error = _error_result(_verdict_text(), **_ERROR_FIELDS)
+    verdict = _invoke_validator([error], [], monkeypatch, tmp_path)
+    assert verdict.verdict == "fail"
+    assert verdict.confidence == 0.0
+    assert verdict.issues[0]["description"] == _ERROR_DETAIL
+    assert f"validator_fail: {_ERROR_DETAIL}" in log_path.read_text(encoding="utf-8")
+
+
+def test_validator_success_result_does_not_write_an_error_log_line(monkeypatch, tmp_path, log_path):
+    verdict = _invoke_validator([_result(_verdict_text())], [], monkeypatch, tmp_path)
+    assert verdict.verdict == "pass"
+    assert not log_path.exists()
+
+
 # ---------------------------------------------------------------------------
 # Live part (opt-in)
 # ---------------------------------------------------------------------------
@@ -393,7 +518,7 @@ def test_live_invoke_worker_returns_session_id_and_text(monkeypatch, tmp_path):
 
     monkeypatch.setattr(orchestrator, "query", recording_query)
 
-    text, session_id = asyncio.run(
+    text, session_id, error_detail = asyncio.run(
         orchestrator._invoke_worker("developer", "Reply with the single word OK.")
     )
 
@@ -405,3 +530,4 @@ def test_live_invoke_worker_returns_session_id_and_text(monkeypatch, tmp_path):
     assert isinstance(session_id, str) and session_id
     assert session_id == init_session
     assert isinstance(text, str) and text.strip()
+    assert error_detail is None
