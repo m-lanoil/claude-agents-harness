@@ -206,11 +206,14 @@ async def _invoke_worker(
     """Stream worker output; return (raw_text, session_id).
 
     session_id is captured from the init SystemMessage for potential correction
-    loop resumption (Q5 decision: session resumption enabled).
+    loop resumption (Q5 decision: session resumption enabled). If the init
+    message gave none, the ResultMessage session_id is used instead. A result
+    of None (the SDK types it str | None) is treated as empty text.
     """
     options = build_options(worker_name, resume=resume_session)
     result_text = ""
     session_id: Optional[str] = None
+    result_session_id: Optional[str] = None
 
     async for message in query(prompt=full_prompt, options=options):
         # Capture session ID from init message for correction loop resumption
@@ -219,9 +222,10 @@ async def _invoke_worker(
             data = getattr(message, "data", {})
             session_id = data.get("session_id")
         if hasattr(message, "result"):
-            result_text = message.result
+            result_text = message.result or ""
+            result_session_id = getattr(message, "session_id", None)
 
-    return result_text, session_id
+    return result_text, session_id or result_session_id
 
 
 # ---------------------------------------------------------------------------
@@ -526,7 +530,7 @@ async def _invoke_validator(routing: RoutingPrompt, result: WorkerResult) -> Val
     raw_text = ""
     async for message in query(prompt=prompt, options=options):
         if hasattr(message, "result"):
-            raw_text = message.result
+            raw_text = message.result or ""
 
     matches = list(_JSON_BLOCK_RE.finditer(raw_text))
     if matches:

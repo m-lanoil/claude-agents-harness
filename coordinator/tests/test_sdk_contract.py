@@ -12,8 +12,9 @@ arguments with `inspect.signature` of the real `query`, so a wrong keyword fails
 Live part (opt-in): one real call that costs a few tokens and needs the owner's
 authentication. It is skipped unless COORDINATOR_LIVE_SDK=1.
 
-Tests marked "documents current behaviour" pin what the orchestrator does today
-for inputs the SDK types allow; they are findings, not endorsements.
+Edge cases the SDK types allow are pinned too: a `ResultMessage.result` of None
+counts as empty text, and a missing init session id falls back to the
+ResultMessage session id.
 
 Run from the repo root:
     uv run --with claude-agent-sdk --with pytest python -m pytest coordinator/tests/test_sdk_contract.py
@@ -258,47 +259,64 @@ def test_invoke_worker_ignores_a_non_init_system_message(monkeypatch):
     assert session_id == "sess-1"
 
 
-def test_invoke_worker_init_without_session_id_gives_none(monkeypatch):
+def test_invoke_worker_init_without_session_id_falls_back_to_the_result_session_id(monkeypatch):
     bare = SystemMessage(subtype="init", data={})
-    _, session_id = _invoke_worker([bare, _result()], [], monkeypatch)
-    assert session_id is None
+    _, session_id = _invoke_worker([bare, _result(session_id="sess-from-result")], [], monkeypatch)
+    assert session_id == "sess-from-result"
 
 
-def test_result_none_returns_none_text_documents_current_behaviour(monkeypatch):
-    # ResultMessage.result is `str | None`; _invoke_worker is annotated to return str.
+def test_invoke_worker_init_session_id_wins_over_the_result_session_id(monkeypatch):
+    _, session_id = _invoke_worker(
+        [_init("sess-init"), _result(session_id="sess-from-result")], [], monkeypatch
+    )
+    assert session_id == "sess-init"
+
+
+def test_invoke_worker_result_none_is_empty_text(monkeypatch):
+    # ResultMessage.result is `str | None`; the orchestrator treats None as "".
     text, session_id = _invoke_worker([_init("sess-1"), _result(text=None)], [], monkeypatch)
-    assert text is None
+    assert text == ""
     assert session_id == "sess-1"
 
 
-def test_result_none_crashes_run_single_hop_documents_current_behaviour(monkeypatch):
-    # parse_worker_result runs a regex over the text, so None raises TypeError and
-    # nothing in the orchestrator catches it.
+def test_result_none_makes_the_hop_malformed(monkeypatch):
     monkeypatch.setattr(
         orchestrator, "query", _fake_query([_init("sess-1"), _result(text=None)], [])
     )
     routing = RoutingPrompt(worker="developer", prompt_text="t", expected_output_path="x.md")
-    with pytest.raises(TypeError):
-        asyncio.run(orchestrator._run_single_hop(routing, "the prompt"))
+    check, result = asyncio.run(orchestrator._run_single_hop(routing, "the prompt"))
+    assert result.status == "malformed"
+    assert result.raw_text == ""
+    assert result.session_id == "sess-1"
+    assert check is not None
+    assert check.passed is False
 
 
-def test_no_init_message_gives_none_session_id_documents_current_behaviour(monkeypatch):
-    # The ResultMessage carries its own session_id, but the orchestrator only reads
-    # the init message, so a stream without init loses the session id.
+def test_no_init_message_uses_the_result_session_id(monkeypatch):
     result = _result("hello", session_id="sess-from-result")
     text, session_id = _invoke_worker([result], [], monkeypatch)
     assert text == "hello"
-    assert session_id is None
+    assert session_id == "sess-from-result"
 
 
-def test_no_init_message_blocked_return_has_no_session_to_resume(monkeypatch):
+def test_no_init_message_blocked_return_keeps_the_session_to_resume(monkeypatch):
     blocked = _fence({"status": "blocked", "blocked_sources": [{"source": "s", "reason": "paywall"}]})
-    monkeypatch.setattr(orchestrator, "query", _fake_query([_result(blocked)], []))
+    monkeypatch.setattr(
+        orchestrator, "query", _fake_query([_result(blocked, session_id="sess-from-result")], [])
+    )
     routing = RoutingPrompt(worker="developer", prompt_text="t", expected_output_path="x.md")
     check, result = asyncio.run(orchestrator._run_single_hop(routing, "the prompt"))
     assert check is None
     assert result.status == "blocked"
-    assert result.session_id is None
+    assert result.session_id == "sess-from-result"
+
+
+def test_message_without_a_session_id_attribute_gives_none(monkeypatch):
+    class Bare:
+        result = "hello"
+
+    _, session_id = _invoke_worker([Bare()], [], monkeypatch)
+    assert session_id is None
 
 
 # ---------------------------------------------------------------------------
@@ -335,11 +353,11 @@ def test_invoke_validator_text_without_json_is_a_fail(monkeypatch, tmp_path, log
     assert "validator_fail: parse error" in log_path.read_text(encoding="utf-8")
 
 
-def test_validator_result_none_crashes_documents_current_behaviour(monkeypatch, tmp_path, log_path):
-    # The regex runs over None, so TypeError escapes before the parse-error fallback.
-    with pytest.raises(TypeError):
-        _invoke_validator([_result(text=None)], [], monkeypatch, tmp_path)
-    assert not log_path.exists()
+def test_validator_result_none_is_a_parse_error_fail(monkeypatch, tmp_path, log_path):
+    verdict = _invoke_validator([_result(text=None)], [], monkeypatch, tmp_path)
+    assert verdict.verdict == "fail"
+    assert verdict.confidence == 0.0
+    assert "validator_fail: parse error" in log_path.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
