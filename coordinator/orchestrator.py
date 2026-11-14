@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from claude_agent_sdk import query
+from claude_agent_sdk import ResultError, query
 
 from .schemas import RoutingPrompt, WorkerResult, AcceptanceResult, ValidatorResult
 from .worker_registry import WORKER_DIRS, build_options, build_validator_options
@@ -214,6 +214,20 @@ def _sdk_error_detail(message) -> Optional[str]:
     )
 
 
+def _sdk_error_detail_from_exception(exc: BaseException) -> str:
+    """Return the fixed-format error line for a ResultError raised with no error ResultMessage.
+
+    The exception carries only a message and an exit code, so subtype and
+    api_error_status stay None; the message goes in errors and the exit code
+    in terminal_reason.
+    """
+    message = getattr(exc, "message", None) or str(exc)
+    return (
+        f"SDK error result: subtype=None, errors=[{message!r}], "
+        f"api_error_status=None, terminal_reason=exit_code={getattr(exc, 'exit_code', None)}"
+    )
+
+
 async def _invoke_worker(
     worker_name: str,
     full_prompt: str,
@@ -227,6 +241,9 @@ async def _invoke_worker(
     of None (the SDK types it str | None) is treated as empty text.
     error_detail is None unless the ResultMessage has is_error set; then it is
     the one-line SDK error description from _sdk_error_detail.
+    The real SDK raises ResultError after yielding an error ResultMessage; that
+    exception is absorbed here. If no error detail was captured yet, it is built
+    from the exception. Any other exception propagates.
     """
     options = build_options(worker_name, resume=resume_session)
     result_text = ""
@@ -234,16 +251,20 @@ async def _invoke_worker(
     result_session_id: Optional[str] = None
     error_detail: Optional[str] = None
 
-    async for message in query(prompt=full_prompt, options=options):
-        # Capture session ID from init message for correction loop resumption
-        subtype = getattr(message, "subtype", None)
-        if subtype == "init":
-            data = getattr(message, "data", {})
-            session_id = data.get("session_id")
-        if hasattr(message, "result"):
-            result_text = message.result or ""
-            result_session_id = getattr(message, "session_id", None)
-            error_detail = _sdk_error_detail(message)
+    try:
+        async for message in query(prompt=full_prompt, options=options):
+            # Capture session ID from init message for correction loop resumption
+            subtype = getattr(message, "subtype", None)
+            if subtype == "init":
+                data = getattr(message, "data", {})
+                session_id = data.get("session_id")
+            if hasattr(message, "result"):
+                result_text = message.result or ""
+                result_session_id = getattr(message, "session_id", None)
+                error_detail = _sdk_error_detail(message)
+    except ResultError as exc:
+        if error_detail is None:
+            error_detail = _sdk_error_detail_from_exception(exc)
 
     return result_text, session_id or result_session_id, error_detail
 
@@ -556,17 +577,23 @@ async def _invoke_validator(routing: RoutingPrompt, result: WorkerResult) -> Val
     §ClaudeAgentOptions). Parses the final JSON block from the response using
     _JSON_BLOCK_RE (same pattern as parse_worker_result in acceptance.py).
     Parse errors are treated as a fail verdict with a single critical issue; so
-    is a ResultMessage with is_error set (the issue carries the SDK error detail).
+    is a ResultMessage with is_error set (the issue carries the SDK error detail)
+    and a ResultError raised by the SDK. Other exceptions propagate.
     """
     prompt = _build_validator_prompt(routing, result)
     options = build_validator_options()
 
     raw_text = ""
     error_detail: Optional[str] = None
-    async for message in query(prompt=prompt, options=options):
-        if hasattr(message, "result"):
-            raw_text = message.result or ""
-            error_detail = _sdk_error_detail(message)
+    try:
+        async for message in query(prompt=prompt, options=options):
+            if hasattr(message, "result"):
+                raw_text = message.result or ""
+                error_detail = _sdk_error_detail(message)
+    except ResultError as exc:
+        # The real SDK raises this after an error ResultMessage; absorb it.
+        if error_detail is None:
+            error_detail = _sdk_error_detail_from_exception(exc)
 
     if error_detail:
         # An SDK error result fails the validation whatever its text says.
