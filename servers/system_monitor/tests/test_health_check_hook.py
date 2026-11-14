@@ -156,15 +156,6 @@ def test_disk_detail_reports_free_gb_and_percent(healthy, run_hook):
     assert "Disk healthy — 100.0 GB (25.0%) free" in payload["systemMessage"]
 
 
-def test_disk_only_checks_the_data_volume(healthy, run_hook, monkeypatch):
-    seen = []
-    healthy(partitions=[partition("/"), partition("/Volumes/Backup")], usage=disk_usage(1.0))
-    monkeypatch.setattr(psutil, "disk_usage", lambda path: seen.append(path))
-    payload, _, _ = run_hook(HEALTH_HOOK)
-    assert seen == []
-    assert status_of(payload["systemMessage"], "Disk") is None
-
-
 def test_disk_usage_is_requested_for_the_data_mountpoint(healthy, run_hook, monkeypatch):
     seen = []
     healthy(partitions=[partition("/"), partition(DATA_MOUNT)])
@@ -220,13 +211,6 @@ def test_battery_detail_says_plugged_in_or_unplugged(healthy, run_hook):
     healthy(battery=battery(90, False))
     payload, _, _ = run_hook(HEALTH_HOOK)
     assert "Battery at 90%, unplugged" in payload["systemMessage"]
-
-
-def test_battery_with_unknown_power_state_is_treated_as_unplugged(healthy, run_hook):
-    # psutil reports power_plugged=None when it cannot be determined; the hook treats that as unplugged.
-    healthy(battery=battery(5, None))
-    payload, _, _ = run_hook(HEALTH_HOOK)
-    assert status_of(payload["systemMessage"], "Battery") == "STOP"
 
 
 # ----------------------------------------------------------------- escalation

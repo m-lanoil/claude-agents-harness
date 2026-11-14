@@ -1,4 +1,6 @@
 import json
+from pathlib import PurePath
+
 import psutil
 
 
@@ -41,11 +43,19 @@ claude_running = False
 for p in psutil.process_iter(["name", "exe"]):
     name = p.info.get("name") or ""
     exe = p.info.get("exe") or ""
-    if "claude" in exe.lower():
+    exe_path = PurePath(exe) if exe else None
+    if (
+        name.lower() == "claude"
+        or (exe_path is not None and exe_path.name.lower() == "claude")
+        or (exe_path is not None and any(d.lower() == "claude" for d in exe_path.parts[:-1]))
+    ):
         claude_running = True
     for proc_name, label in _HEAVY_APPS.items():
+        app = proc_name.lower()
         if label not in running_heavy and (
-            proc_name.lower() in name.lower() or proc_name.lower() in exe.lower()
+            name.lower() == app
+            or name.lower().startswith(app + " ")
+            or f"/{app}.app/" in exe.lower()
         ):
             running_heavy.append(label)
 
@@ -69,11 +79,11 @@ else:
 checks.append({"component": "Swap", "status": s, "detail": msg, "tip": tip})
 verdict = _escalate(verdict, s)
 
-for part in psutil.disk_partitions(all=False):
-    if part.mountpoint != "/System/Volumes/Data":
-        continue
+_mountpoints = [part.mountpoint for part in psutil.disk_partitions(all=False)]
+_disk_mount = next((m for m in ("/System/Volumes/Data", "/") if m in _mountpoints), None)
+if _disk_mount is not None:
     try:
-        usage = psutil.disk_usage(part.mountpoint)
+        usage = psutil.disk_usage(_disk_mount)
         free_pct = round(100 - usage.percent, 1)
         free_gb = round(usage.free / (1024 ** 3), 1)
         if free_pct < 10:
@@ -95,7 +105,13 @@ if battery is None:
 else:
     pct = round(battery.percent, 1)
     plugged = battery.power_plugged
-    if not plugged and pct <= 10:
+    if plugged is None:
+        msg = f"Battery at {pct}%, power state unknown"
+        if pct <= 20:
+            s, tip = "WARN", "Connect charger soon"
+        else:
+            s, tip = "GO", None
+    elif not plugged and pct <= 10:
         s, msg = "STOP", f"Battery critically low at {pct}%"
         tip = "Plug in charger immediately"
     elif not plugged and pct <= 20:
