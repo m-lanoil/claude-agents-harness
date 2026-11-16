@@ -141,7 +141,7 @@ A worker that cannot fetch a required source ends its run with `"status": "block
 - A replacement URL is registered under `<source>_replacement` in `other_sources.json`.
 - The same worker session is resumed with your answers, then the normal acceptance and Validator path runs.
 - At most 2 block-resume cycles per hop (shared with the correction retry). A third block, a missing session ID, or a block during a Validator correction retry stops the hop and prints the manual-mode fallback.
-- Tests: `coordinator/tests/` (180, stubbed `query`, no network). Run from the repo root: `uv run --with claude-agent-sdk --with pytest python -m pytest coordinator/tests`. Live: three single-hop runs on 2026-11-12; the blocked-fetch resume has not run live.
+- Tests: `coordinator/tests/` (251 passed, 2 skipped on 2026-11-15; stubbed `query` plus SDK contract tests, no network). The 2 skips are live SDK smoke tests, enabled with `COORDINATOR_LIVE_SDK=1` (one real call each). Run from the repo root: `uv run --with claude-agent-sdk --with pytest python -m pytest coordinator/tests`. Live: three single-hop Developer runs on 2026-11-12 and one single-hop Scout run on 2026-11-13; the blocked-fetch resume has not run live.
 
 ## Module structure
 
@@ -152,13 +152,16 @@ A worker that cannot fetch a required source ends its run with `"status": "block
 | `acceptance.py` | `parse_worker_result()`, `acceptance_check()` |
 | `schemas.py` | `RoutingPrompt`, `WorkerResult` (incl. `blocked_sources`), `AcceptanceResult` dataclasses |
 | `__main__.py` | Thin CLI wrapper (`python -m coordinator`) |
+| `tests/` | Offline pytest suite (stubbed `query`, SDK contract tests, opt-in live smoke tests) |
 
 ## CLAUDE.md loading
 
 Workers' `CLAUDE.md` files are loaded automatically. The SDK subprocess runs with `cwd` set to the worker's directory (`workers/developer/`, etc.), and `setting_sources` is left at its default (`None`), which loads all settings sources including `CLAUDE.md`. This is confirmed by `kb/kb_claude_agent_sdk.md`.
 
+The root `CLAUDE.md` (the Meta-Orchestrator rules) is an ancestor of every worker directory, so `build_options` passes inline `settings` with `claudeMdExcludes` for it and `autoMemoryEnabled: false`; a worker sees only its own rules. Covered by offline contract tests; not checked in a live session. The Validator runs from the repo root with `setting_sources=[]`.
+
 ## Prerequisites
 
 - `uv` available on PATH
 - `claude` CLI authenticated (existing Claude Code session is sufficient — no separate `ANTHROPIC_API_KEY` needed)
-- MCP servers present at `servers/docs_fetcher/` and `servers/system_monitor/`
+- MCP servers present at `servers/docs_fetcher/`, `servers/system_monitor/` and `servers/web_search/` (the Scout gets `web_search` only; it needs `BRAVE_SEARCH_API_KEY` exported in the shell that runs the coordinator)
