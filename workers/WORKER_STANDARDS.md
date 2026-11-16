@@ -2,7 +2,7 @@
 
 **Workers: read this file at the start of every task.** All shared rules live here — do not rely on copies in your own `CLAUDE.md`. Your `CLAUDE.md` contains only mandate-specific content.
 
-**Meta-Orchestrator**: This file is the canonical source for worker rules. The Worker-Building Loop (step 4) and Worker Gap Protocol both reference it. No worker draft is complete until all items below are present.
+**Meta-Orchestrator only (workers: this line is not addressed to you; skip it)**: This file is the canonical source for worker rules. The Worker-Building Loop (step 4) and Worker Gap Protocol both reference it. No worker draft is complete until all items below are present.
 
 ## Worker Security Baseline
 Every worker `CLAUDE.md` must include all seven items, regardless of mandate.
