@@ -42,5 +42,9 @@
         "<YOUR_PROJECT_ROOT>/output"
       ]
     }
-  }
+  },
+  "claudeMdExcludes": [
+    "<YOUR_PROJECT_ROOT>/CLAUDE.md"
+  ],
+  "autoMemoryEnabled": false
 }

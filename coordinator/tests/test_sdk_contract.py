@@ -50,12 +50,12 @@ from coordinator.schemas import RoutingPrompt, WorkerResult
 WORKERS = ("developer", "architect", "content", "researcher", "scout")
 
 # Fields each builder passes to ClaudeAgentOptions(...), by keyword.
-WORKER_PASSED = {"allowed_tools", "mcp_servers", "permission_mode", "cwd", "resume"}
+WORKER_PASSED = {"allowed_tools", "mcp_servers", "permission_mode", "cwd", "resume", "settings"}
 VALIDATOR_PASSED = {"allowed_tools", "mcp_servers", "permission_mode", "cwd", "setting_sources"}
 
 # Fields whose value differs from the dataclass default on the returned object.
 # mcp_servers={} equals the default, so it only shows in the passed-keyword sets.
-WORKER_NON_DEFAULT = {"allowed_tools", "mcp_servers", "permission_mode", "cwd"}
+WORKER_NON_DEFAULT = {"allowed_tools", "mcp_servers", "permission_mode", "cwd", "settings"}
 VALIDATOR_NON_DEFAULT = {"allowed_tools", "permission_mode", "cwd", "setting_sources"}
 
 _QUERY_SIG = inspect.signature(query)
@@ -285,6 +285,13 @@ def test_build_options_resume_is_set_when_given(worker):
     options = worker_registry.build_options(worker, resume="sess-9")
     assert options.resume == "sess-9"
     assert _non_default_fields(options) == WORKER_NON_DEFAULT | {"resume"}
+
+
+@pytest.mark.parametrize("worker", WORKERS)
+def test_build_options_excludes_root_claude_md_and_memory(worker):
+    cfg = json.loads(worker_registry.build_options(worker).settings)
+    assert cfg["autoMemoryEnabled"] is False
+    assert cfg["claudeMdExcludes"] == [str((worker_registry._REPO_ROOT / "CLAUDE.md").resolve())]
 
 
 def test_build_validator_options_passes_exactly_the_expected_fields(spy_options):

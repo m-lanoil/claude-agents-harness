@@ -45,5 +45,9 @@
         "<YOUR_PROJECT_ROOT>/servers/kb"
       ]
     }
-  }
+  },
+  "claudeMdExcludes": [
+    "<YOUR_PROJECT_ROOT>/CLAUDE.md"
+  ],
+  "autoMemoryEnabled": false
 }
