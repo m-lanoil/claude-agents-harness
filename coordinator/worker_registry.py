@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Optional
 from claude_agent_sdk import ClaudeAgentOptions
@@ -71,6 +72,9 @@ def build_options(worker_name: str, resume: Optional[str] = None) -> ClaudeAgent
 
     cwd is set to the worker's directory so the SDK subprocess loads the worker's
     CLAUDE.md automatically (setting_sources=None default preserves this behavior).
+    The root CLAUDE.md (Meta-Orchestrator rules, an ancestor of the worker dir) and
+    the owner's auto-memory are excluded via inline settings so a worker sees only
+    its own rules.
     """
     worker_dir = WORKER_DIRS[worker_name]
     mcp = {name: _ALL_MCP[name] for name in _WORKER_MCP_NAMES[worker_name]}
@@ -80,4 +84,8 @@ def build_options(worker_name: str, resume: Optional[str] = None) -> ClaudeAgent
         permission_mode="acceptEdits",
         cwd=str(worker_dir.resolve()),
         resume=resume,
+        settings=json.dumps({
+            "claudeMdExcludes": [str((_REPO_ROOT / "CLAUDE.md").resolve())],
+            "autoMemoryEnabled": False,
+        }),
     )
