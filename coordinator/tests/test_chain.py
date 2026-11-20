@@ -209,7 +209,8 @@ def test_single_hop_chain_writes_straight_to_final_path(env):
     env.inputs = ["yes"]
     assert _chain(env, workers=("developer",)) is True
     assert env.final.exists()
-    assert not env.intermediate_dir.exists()
+    # no intermediate hop output; the only file there is the brief record
+    assert not (env.intermediate_dir / "coordinator_hop_1_developer.md").exists()
     assert "multi-hop" not in env.worker_calls()[0]["prompt"]
 
 
