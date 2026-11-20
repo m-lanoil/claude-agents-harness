@@ -4,13 +4,13 @@ Used by: Meta-Orchestrator
 Triggered at brief time for sampled tasks.
 
 ## Purpose
-Compare the harness against a plain Claude session on the same task, so "is the harness worth it" has data. A single eval proves nothing; do not state a harness advantage from fewer than 5 evals.
+Compare the harness against a plain Claude session on the same task, so "is the harness worth it" has data. A single eval proves nothing; do not state a harness advantage from fewer than 5 evals. Report results per main worker (the first worker in the chain; orchestrator-only work is its own group), never pooled; the 5-eval count for a revisit needs evals from at least 2 different main workers.
 
 ## Eligible tasks
-Low error cost, bounded scope (one worker, or at most 3 hops), all inputs known at brief time, not client-facing. The owner chooses at brief time; about 1 in 5 eligible tasks. The harness run always happens as normal; the eval only adds a plain run.
+Low error cost, bounded scope (one worker, or at most 3 hops), all inputs known at brief time, not client-facing. The owner chooses at brief time. The harness run always happens as normal; the eval only adds a plain run.
 
 ## Due check
-At brief time the orchestrator checks eligibility. If the task is eligible and none of the 5 most recent Track-record entries has an Eval result other than "n/a" (a run or a decline), it asks one line: "This task is eligible for a baseline eval and one is due. Run one?" The owner answers yes or no; the orchestrator never starts an eval on its own. A decline is recorded as Eval result "declined" and defers the next offer by 5 entries.
+At brief time the orchestrator checks eligibility. If the task is eligible and none of the 3 most recent Track-record entries for its main worker has an Eval result other than "n/a" (a run or a decline), it asks one line: "This task is eligible for a baseline eval and one is due. Run one?" The owner answers yes or no; the orchestrator never starts an eval on its own. A decline is recorded as Eval result "declined" and defers the next offer by 3 entries for that worker.
 
 ## Procedure
 1. **Brief time**: the owner says "eval" (or answers yes to the due check). The orchestrator writes the plain brief to `output/intermediate_outputs/<topic>/eval_plain_brief.md`: the brief's task paragraph, state-at-brief facts, same approved sources and same output format, with the harness-only lines removed (fetch budget, kb, sandbox, worker rules).
@@ -20,4 +20,4 @@ At brief time the orchestrator checks eligibility. If the task is eligible and n
 5. **Record**: Track-record field "Eval result": `preferred: harness|plain|neither; claims fixed h/p; minutes h/p`; "n/a" when not sampled.
 
 ## Limits
-The checker cannot verify the plain run's quotes (no saved sources). Both runs share one owner, so familiarity biases later runs. Minutes are self-reported.
+The checker cannot verify the plain run's quotes (no saved sources). Both runs share one owner, so familiarity biases later runs. Minutes are self-reported. Eligibility (low error cost, at most 3 hops, not client-facing) excludes long research chains, so evals say nothing about them.
