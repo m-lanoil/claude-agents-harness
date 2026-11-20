@@ -50,6 +50,7 @@ source: [url]
 fetched: YYYY-MM-DD
 ---
 ```
+`fetched:` is the date of the file's oldest content: bump it only on a full re-fetch. After a partial refresh keep it and add, before the closing `---`, a `refreshed:` list with one `  - "<exact heading>": YYYY-MM-DD` line per new or re-read section; keep entries in step if a heading is renamed or removed.
 
 ### Human-Retrieved Source Protocol
 When a registered/approved URL fails to fetch mid-task (dead link, paywall, bot-block) and the
@@ -81,6 +82,7 @@ Before saving a kb file, confirm the fetched page matches what the brief or regi
 3. **Checkpoint rule** — every 3 fetch calls, call `get_fetch_stats`. If budget is nearly exhausted, stop fetching and proceed with what's been grounded.
 4. **Large-fetch gate** — `crawl_docs` must be explicitly listed in the task brief with URL and `max_pages` — do not use it unless specified.
 5. **Budget cap** — the routing prompt's suggested fetch budget is a hard cap. Do not exceed it — flag in self-critique if budget runs out.
+6. **Context pressure** — if your session was summarized mid-task, or you had to re-read material you had already processed, say so in self-critique.
 
 ### Handoff Rule
 When you identify a dependency on another worker mid-task — or when your task is complete and further work requires a different mandate — do not generate a routing prompt for that worker yourself. The Meta-Orchestrator is responsible for all routing decisions and prompt construction.
@@ -101,7 +103,7 @@ After any session that fetches new content, register each new source URL in the 
 | `clis.json` | CLI tools invoked as shell commands |
 | `other_sources.json` | Hardware specs, RFCs, platform docs, REST APIs, model cards, datasets, reports, reference pages |
 
-**How to register**: Edit the JSON file directly — add `"name": "url"` to the object and save. If the file does not exist yet, create it with `{}` first. Do not rely solely on the MCP tools (`add_library`, `add_cli`, `add_other_source`) — these files are gitignored and may not be present; direct editing is always safe.
+**How to register**: Edit the JSON file directly — add `"name": "url"` to the object and save. If the file does not exist yet, create it with `{}` first. Do not rely solely on the MCP tools (`add_library`, `add_cli`, `add_other_source`) — these files are gitignored and may not be present; direct editing is always safe. These registry JSON files are the one permitted write outside your sandbox list; list every entry you added in self-critique.
 
 **Python stdlib exemption**: `docs.python.org` sources are exempt from Source Registry registration only — do not add stdlib modules to any JSON. The kb file is still mandatory: propose the `docs.python.org` URL, wait for approval, fetch, and write `kb_[module].md` before writing any code that uses the module. All other KB rules (staleness check, frontmatter format, naming convention) still apply.
 
