@@ -35,7 +35,7 @@
 | A checker can verify a pipeline run's artifacts, ordering and the human gate | `scripts/check_pipeline_run.py` |
 | Five workers are defined | `workers/{developer,architect,content,researcher,scout}/CLAUDE.md` |
 | Runtime state is excluded from version control; templates are tracked | `.gitignore`, `*_TEMPLATE.*`, `*.template.json` |
-| Build-out history: 151 commits, 2026-03-30 to 2026-11-20 | `git log` (e4f93d5 to 5b5d3fe, before this refresh) |
+| Build-out history: 151 commits, 2026-03-30 to 2026-11-20 | `git rev-list --count 5b5d3fe` (e4f93d5 to 5b5d3fe; a snapshot, later commits are not counted) |
 | `docs_fetcher` has offline tests | 174 passed, `servers/docs_fetcher/tests/` |
 | All six maintenance scripts have offline tests; the three servers, hooks, config templates and coordinator are covered by 929 passing tests | `scripts/tests/`, `servers/*/tests/`, `tests/`, `coordinator/tests/`, `scripts/run_tests.py` (run 2026-11-20) |
 | Write denies and sandboxed Bash blocked test writes from the worker folders | Track-record entries dated 2026-11-07 |

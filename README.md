@@ -94,7 +94,7 @@ Components and what each is (details and maturity signals in [`STATUS.md`](STATU
 
 ## Evidence and track record
 
-What the tracked repo can show: the build-out timeline in `git log`, 151 commits from 2026-03-30 (e4f93d5) to 2026-11-20 (5b5d3fe), counted before this refresh. Hashes are those on `main` today; the older ones changed in a history rewrite (inferred: the earlier hashes no longer exist on `main`, and each has a commit with the same subject).
+What the tracked repo can show: the build-out timeline in `git log`, 151 commits from 2026-03-30 (e4f93d5) to 2026-11-20 (5b5d3fe), a snapshot at that commit (`git rev-list --count 5b5d3fe` reproduces it); later commits, including the refresh that wrote this line, are not counted. Hashes are those on `main` today; the older ones changed in a history rewrite (inferred: the earlier hashes no longer exist on `main`, and each has a commit with the same subject).
 - 2026-03-30 to 2026-04-06: initial structure with the `docs_fetcher` server, then `system_monitor` and the CLI/other-sources registries (1ba3a97, 5720b58, 682b4cd, per commit messages).
 - 2026-05-11 to 2026-05-15: worker standards extracted into a shared file (98a0582), a template-only branch initialized (b08f2c7), and runtime logs untracked (fc2f818, 705660d), all per commit messages.
 - 2026-06-16 to 2026-06-29: bug-fix, documentation and context-intake protocols (df8a044); Agent SDK coordinator and two-mode architecture (10d7405, ec16c6c), per commit messages.
