@@ -78,7 +78,7 @@ Use `../../output/...` notation so the path resolves correctly from the worker c
 | Path type | Location | Example |
 |---|---|---|
 | Final deliverable | `output/final_outputs/<topic>/` | `../../output/final_outputs/<topic>/report.md` |
-| Intermediate hop files (auto-managed) | `output/intermediate_outputs/` | *(set by coordinator)* |
+| Intermediate hop files and brief records (auto-managed) | `output/intermediate_outputs/<topic>/` | *(set by coordinator)* |
 
 Final deliverables must include a **topic subfolder** (e.g. `<client-name>/`, `<project-name>/`)
 — reuse an existing one under `output/final_outputs/` where it fits rather than writing loose
@@ -91,6 +91,24 @@ in a multi-hop chain. They are named `coordinator_hop_{N}_{worker}.md` and place
 subfolder, hop files fall back to `output/intermediate_outputs/misc/` and a warning is
 printed — always pass a topic-qualified `--output` to avoid this. These are gitignored
 and not committed.
+
+**Brief record.** For every hop of every run (single-hop runs included) the coordinator also
+writes `coordinator_hop_{N}_{worker}_brief_{YYYYMMDD-HHMMSS}.md` into the same
+`output/intermediate_outputs/<topic>/` folder. It holds every prompt sent to that hop's worker,
+in send order, each under a numbered heading with its kind and a `YYYY-MM-DD HH:MM:SS`
+timestamp, so you can audit the hop and write Track-record entries afterwards. The kinds are
+the routing prompt (the text you approved, so your edits are kept), the acceptance correction
+prompt, the semantic correction prompt, and the blocked-fetch resume prompt (which has no
+approval gate). Each prompt is written verbatim inside a code fence longer than any backtick
+run in it, so prompts that contain fences stay recoverable, and it is written before the worker
+is invoked with it. Validator prompts and prompts you abort at the approval gate are not
+recorded. The `YYYYMMDD-HHMMSS` part is taken once at the start of the run and shared by all
+its hops; a rerun gets a new stamp and never overwrites an earlier file (if a name is already
+taken, `_2`, `_3`, ... is appended). `<topic>` comes from `--output` as above, and this applies
+to a `--output` under `intermediate_outputs/<topic>/` too. If a record cannot be written
+(for example an `OSError`), the coordinator prints a `[brief record] WARNING`, adds a line to
+`logs/worker_updates.md`, and continues the hop; the next successful write of that hop's
+record includes the entry that failed.
 
 Final deliverables should be directed to `output/final_outputs/<topic>/` via `--output`. These
 are also gitignored (local-only) but are the permanent output for the user.
@@ -141,13 +159,13 @@ A worker that cannot fetch a required source ends its run with `"status": "block
 - A replacement URL is registered under `<source>_replacement` in `other_sources.json`.
 - The same worker session is resumed with your answers, then the normal acceptance and Validator path runs.
 - At most 2 block-resume cycles per hop (shared with the correction retry). A third block, a missing session ID, or a block during a Validator correction retry stops the hop and prints the manual-mode fallback.
-- Tests: `coordinator/tests/` (251 passed, 2 skipped on 2026-11-15; stubbed `query` plus SDK contract tests, no network). The 2 skips are live SDK smoke tests, enabled with `COORDINATOR_LIVE_SDK=1` (one real call each). Run from the repo root: `uv run --with claude-agent-sdk --with pytest python -m pytest coordinator/tests`. Live: three single-hop Developer runs on 2026-11-12 and one single-hop Scout run on 2026-11-13; the blocked-fetch resume has not run live.
+- Tests: `coordinator/tests/` (270 passed, 2 skipped on 2026-11-20; stubbed `query` plus SDK contract tests, no network). The 2 skips are live SDK smoke tests, enabled with `COORDINATOR_LIVE_SDK=1` (one real call each). Run from the repo root: `uv run --with claude-agent-sdk --with pytest python -m pytest coordinator/tests`. Live: three single-hop Developer runs on 2026-11-12 and one single-hop Scout run on 2026-11-13; the blocked-fetch resume has not run live.
 
 ## Module structure
 
 | File | Responsibility |
 |---|---|
-| `orchestrator.py` | `run(task)` async — main loop, multi-hop sequencing, logging |
+| `orchestrator.py` | `run(task)` async — main loop, multi-hop sequencing, logging, brief record (`_BriefRecord`) |
 | `worker_registry.py` | Per-worker `ClaudeAgentOptions`; MCP paths resolved from `__file__` |
 | `acceptance.py` | `parse_worker_result()`, `acceptance_check()` |
 | `schemas.py` | `RoutingPrompt`, `WorkerResult` (incl. `blocked_sources`), `AcceptanceResult` dataclasses |

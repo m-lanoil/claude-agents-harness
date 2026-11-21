@@ -270,6 +270,81 @@ async def _invoke_worker(
 
 
 # ---------------------------------------------------------------------------
+# Brief record: every prompt sent to a worker, saved before the worker gets it
+# ---------------------------------------------------------------------------
+
+_KIND_ROUTING = "routing prompt"
+_KIND_ACCEPTANCE_CORRECTION = "acceptance correction prompt"
+_KIND_SEMANTIC_CORRECTION = "semantic correction prompt"
+_KIND_RESUME = "blocked-fetch resume prompt"
+_BACKTICK_RUN_RE = re.compile(r"`+")
+
+
+def _run_stamp() -> str:
+    """Timestamp shared by the brief-record files of one run (YYYYMMDD-HHMMSS)."""
+    return datetime.now().strftime("%Y%m%d-%H%M%S")
+
+
+class _BriefRecord:
+    """Markdown record of the prompts sent to one worker during one hop of one run.
+
+    Each record() call adds an entry (numbered heading with the prompt kind and a
+    YYYY-MM-DD HH:MM:SS timestamp, then the prompt verbatim in a code fence longer
+    than any backtick run inside it) and rewrites the whole file, so an entry whose
+    write failed is included by the next successful write. The file name is chosen
+    on the first write and never replaces an existing file: if the name is taken,
+    _2, _3, ... is appended. A write failure never raises: it prints a warning and
+    adds a line to the worker updates log, and the hop continues.
+    """
+
+    def __init__(self, directory: Path, hop_number: int, worker: str, run_stamp: str):
+        self._directory = directory
+        self._worker = worker
+        self._base = f"coordinator_hop_{hop_number}_{worker}_brief_{run_stamp}"
+        self._header = f"# Brief record: hop {hop_number}, {worker} worker (run {run_stamp})\n"
+        self._entries: list[str] = []
+        self._path: Optional[Path] = None
+
+    @property
+    def path(self) -> Optional[Path]:
+        """The record file, once the first write has chosen its name; else None."""
+        return self._path
+
+    def record(self, kind: str, text: str) -> None:
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        longest = max((len(run) for run in _BACKTICK_RUN_RE.findall(text)), default=0)
+        fence = "`" * max(3, longest + 1)
+        self._entries.append(
+            f"\n## {len(self._entries) + 1}. {kind} — {stamp}\n\n{fence}text\n{text}\n{fence}\n"
+        )
+        try:
+            self._write()
+        except OSError as exc:
+            target = self._path or (self._directory / f"{self._base}.md")
+            print(
+                f"\n[brief record] WARNING: could not write {target}: {exc}. "
+                f"The {kind} was NOT recorded; the hop continues."
+            )
+            try:
+                _append_worker_updates_log(
+                    self._worker, f"brief record write failed ({target.name}, {kind}): {exc}"
+                )
+            except OSError as log_exc:
+                print(f"[brief record] WARNING: could not write the worker updates log: {log_exc}")
+
+    def _write(self) -> None:
+        if self._path is None:
+            self._directory.mkdir(parents=True, exist_ok=True)
+            path = self._directory / f"{self._base}.md"
+            n = 2
+            while path.exists():
+                path = self._directory / f"{self._base}_{n}.md"
+                n += 1
+            self._path = path
+        self._path.write_text(self._header + "".join(self._entries), encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
 # Single hop: invoke → parse → check (with one retry)
 # ---------------------------------------------------------------------------
 
@@ -277,6 +352,8 @@ async def _run_single_hop(
     routing: RoutingPrompt,
     full_prompt: str,
     resume_session: Optional[str] = None,
+    brief_record: Optional[_BriefRecord] = None,
+    prompt_kind: str = _KIND_ROUTING,
 ) -> tuple[Optional[AcceptanceResult], WorkerResult]:
     """Invoke worker once; parse result; run acceptance check.
 
@@ -289,7 +366,11 @@ async def _run_single_hop(
     resume_session: optional session ID for resuming a prior worker session
     (used by _handle_validator_result for semantic correction retries and by
     the blocked-source resume).
+    brief_record: when given, full_prompt is recorded under prompt_kind before
+    the worker is invoked.
     """
+    if brief_record is not None:
+        brief_record.record(prompt_kind, full_prompt)
     raw_text, session_id, error_detail = await _invoke_worker(
         routing.worker, full_prompt, resume_session
     )
@@ -484,14 +565,20 @@ async def _run_hop_handling_blocks(
     full_prompt: str,
     budget: _BlockBudget,
     resume_session: Optional[str] = None,
+    brief_record: Optional[_BriefRecord] = None,
+    prompt_kind: str = _KIND_ROUTING,
 ) -> Optional[tuple[AcceptanceResult, WorkerResult]]:
     """Run a hop; on a blocked return, ask the owner and resume the same session.
 
     Returns (AcceptanceResult, WorkerResult) for the first non-blocked result, or
     None if the hop must stop (owner aborted, no session to resume, or the
     block-resume cap was exceeded). `budget` is shared by every call for the hop.
+    brief_record: when given, full_prompt is recorded under prompt_kind and every
+    blocked-fetch resume prompt is recorded as well, each before its worker call.
     """
-    check, result = await _run_single_hop(routing, full_prompt, resume_session)
+    check, result = await _run_single_hop(
+        routing, full_prompt, resume_session, brief_record, prompt_kind
+    )
     while result.status == "blocked":
         if budget.used >= _MAX_BLOCK_RESUMES:
             _present_blocked_sources(result)
@@ -520,7 +607,8 @@ async def _run_hop_handling_blocks(
         resume_prompt = _build_resume_prompt(_apply_block_answers(routing.worker, answers))
         budget.used += 1
         check, result = await _run_single_hop(
-            routing, resume_prompt, resume_session=result.session_id
+            routing, resume_prompt, resume_session=result.session_id,
+            brief_record=brief_record, prompt_kind=_KIND_RESUME,
         )
     return check, result
 
@@ -647,8 +735,12 @@ async def _handle_validator_result(
     routing: RoutingPrompt,
     result: WorkerResult,
     retry_available: bool = True,
+    brief_record: Optional[_BriefRecord] = None,
 ) -> bool:
     """Handle a ValidatorResult. Returns True to proceed, False to abort.
+
+    brief_record: when given, the approved semantic correction prompt is recorded
+    before the worker is resumed with it.
 
     Pass paths:
       - confidence >= threshold: print summary and return True.
@@ -744,7 +836,8 @@ async def _handle_validator_result(
 
     # Resume original worker session for correction (grounded: kb_claude_agent_sdk.md, §Sessions)
     retry_check, retry_result = await _run_single_hop(
-        routing, correction_approved, resume_session=result.session_id
+        routing, correction_approved, resume_session=result.session_id,
+        brief_record=brief_record, prompt_kind=_KIND_SEMANTIC_CORRECTION,
     )
     if retry_check is None:
         # Worker came back blocked on a failed fetch during the semantic correction.
@@ -810,10 +903,19 @@ async def _execute_chain(
     task: str,
     expected_output_path: str,
     required_sections: list[str],
+    run_stamp: Optional[str] = None,
 ) -> bool:
-    """Execute a multi-hop chain. Returns True if all hops passed."""
+    """Execute a multi-hop chain. Returns True if all hops passed.
+
+    Every prompt sent to a worker is recorded per hop in
+    output/intermediate_outputs/<topic>/coordinator_hop_<N>_<worker>_brief_<run_stamp>.md.
+    run_stamp (YYYYMMDD-HHMMSS) is shared by all hops of one run; run() passes the
+    one taken at run start, and a direct caller that omits it gets one taken here.
+    """
     hop_context: Optional[str] = None
     total_hops = len(hop_workers)
+    topic = _topic_from_output_path(expected_output_path)
+    run_stamp = run_stamp or _run_stamp()
 
     for hop_idx, worker_name in enumerate(hop_workers):
         print(f"\n{'─' * 50}")
@@ -823,7 +925,6 @@ async def _execute_chain(
         # For multi-hop: intermediate hops write to a temp path (topic-sorted, matching
         # the final hop's topic); only the final hop writes to expected_output_path.
         if hop_idx < total_hops - 1:
-            topic = _topic_from_output_path(expected_output_path)
             hop_output = f"../../output/intermediate_outputs/{topic}/coordinator_hop_{hop_idx + 1}_{worker_name}.md"
         else:
             hop_output = expected_output_path
@@ -858,10 +959,22 @@ async def _execute_chain(
             print("Task aborted by user.")
             return False
 
+        # Brief record for this hop; the topic folder is the same one intermediate
+        # hop files use, resolved from the worker's cwd like hop_output above.
+        brief_record = _BriefRecord(
+            (WORKER_DIRS[worker_name] / f"../../output/intermediate_outputs/{topic}").resolve(),
+            hop_idx + 1,
+            worker_name,
+            run_stamp,
+        )
+
         # Invoke + acceptance check
         retry_used = False
         block_budget = _BlockBudget()
-        outcome = await _run_hop_handling_blocks(routing, approved_prompt, block_budget)
+        outcome = await _run_hop_handling_blocks(
+            routing, approved_prompt, block_budget,
+            brief_record=brief_record, prompt_kind=_KIND_ROUTING,
+        )
         if outcome is None:
             return False
         check, result = outcome
@@ -883,7 +996,8 @@ async def _execute_chain(
                 return False
 
             outcome = await _run_hop_handling_blocks(
-                routing, retry_approved, block_budget, resume_session=result.session_id
+                routing, retry_approved, block_budget, resume_session=result.session_id,
+                brief_record=brief_record, prompt_kind=_KIND_ACCEPTANCE_CORRECTION,
             )
             if outcome is None:
                 return False
@@ -897,7 +1011,8 @@ async def _execute_chain(
         # Semantic validation — runs only when acceptance passes (structural gate first)
         validator_result = await _invoke_validator(routing, result)
         proceed = await _handle_validator_result(
-            validator_result, routing, result, retry_available=not retry_used
+            validator_result, routing, result, retry_available=not retry_used,
+            brief_record=brief_record,
         )
         if not proceed:
             _append_worker_updates_log(
@@ -958,6 +1073,7 @@ async def run(
         - Gap acknowledgment (user must acknowledge worker-reported gaps)
         - Correction retry gate (user approves or aborts before correction attempt)
     """
+    run_stamp = _run_stamp()  # shared by every hop's brief-record file in this run
     print(f"\n{'#' * 60}")
     print("Coordinator: new task")
     print(f"{'#' * 60}")
@@ -1005,6 +1121,7 @@ async def run(
         task=task,
         expected_output_path=expected_output_path,
         required_sections=required_sections,
+        run_stamp=run_stamp,
     )
 
     # Step 7: Log
