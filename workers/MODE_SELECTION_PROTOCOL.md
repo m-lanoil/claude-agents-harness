@@ -10,7 +10,7 @@ Default **Manual**; Coordinator only for tasks meeting the criteria below, chose
 The standing override (2026-09-28 to 2026-11-09) was lifted by the owner on 2026-11-09: the per-brief
 eligibility record and the six exit criteria were overhead, so they no longer gate coordinator use.
 The coordinator has a defined failed-fetch path (blocked return, owner prompt, resume; `coordinator/README.md`)
-but has run live only on three internal single-hop tasks (2026-11-12) and never through a blocked fetch; known limits (workers cannot ask mid-task) stay listed in `STATUS.md`.
+but has run live only on four single-hop tasks (three internal Developer tasks on 2026-11-12, one Scout task on 2026-11-13) and never through a blocked fetch; known limits (workers cannot ask mid-task) stay listed in `STATUS.md`.
 
 ## Coordinator mode — use when all of these hold
 - Spec is complete and self-contained: worker needs no mid-task clarification

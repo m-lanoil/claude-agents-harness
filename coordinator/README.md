@@ -159,7 +159,7 @@ A worker that cannot fetch a required source ends its run with `"status": "block
 - A replacement URL is registered under `<source>_replacement` in `other_sources.json`.
 - The same worker session is resumed with your answers, then the normal acceptance and Validator path runs.
 - At most 2 block-resume cycles per hop (shared with the correction retry). A third block, a missing session ID, or a block during a Validator correction retry stops the hop and prints the manual-mode fallback.
-- Tests: `coordinator/tests/` (270 passed, 2 skipped on 2026-11-20; stubbed `query` plus SDK contract tests, no network). The 2 skips are live SDK smoke tests, enabled with `COORDINATOR_LIVE_SDK=1` (one real call each). Run from the repo root: `uv run --with claude-agent-sdk --with pytest python -m pytest coordinator/tests`. Live: three single-hop Developer runs on 2026-11-12 and one single-hop Scout run on 2026-11-13; the blocked-fetch resume has not run live.
+- Tests: `coordinator/tests/` (270 passed, 2 skipped on 2026-11-20; stubbed `query` plus SDK contract tests, no network). The 2 skips are live SDK smoke tests, enabled with `COORDINATOR_LIVE_SDK=1` (one real call each); both passed in one owner run on 2026-11-20. Run from the repo root: `uv run --with claude-agent-sdk --with pytest python -m pytest coordinator/tests`. Live: three single-hop Developer runs on 2026-11-12 and one single-hop Scout run on 2026-11-13; the blocked-fetch resume has not run live.
 
 ## Module structure
 

@@ -30,7 +30,7 @@ Every worker's checklist must follow this order:
 4. **State the plan** — describe approach and name which rules apply.
 
 ### KB staleness check (three-branch logic)
-Before using any kb file, and before any fetch, consult `logs/KB_STALENESS_LOG.md` for a pre-computed staleness overview (updated by weekly cron, Mondays 9am). Then apply this logic to each source you will actually use:
+Before using any kb file, and before any fetch, consult `logs/KB_STALENESS_LOG.md` for a pre-computed staleness overview (updated by a weekly launchd job, Mondays 9am). Then apply this logic to each source you will actually use:
 - **kb file exists, `fetched:` ≤30 days** → use directly. Do not re-fetch.
 - **kb file exists, `fetched:` >30 days** → stale. Re-fetch and update before using.
 - **kb file missing** → fetch only if the URL is in the Source Registry or task brief; otherwise flag in self-critique.
