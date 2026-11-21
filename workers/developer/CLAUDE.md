@@ -54,7 +54,7 @@ Applies to any task requiring code or embedded shell command strings.
 4. **Import audit**: After writing code, verify every import and shell command traces to a kb file. Run `python3 ../../scripts/check_imports.py ./sandbox/<project_name> --kb ./kb --alias ../../scripts/import_kb_aliases.cfg`, and resolve every MISSING or STALE line by fetching (standard-library docs are always approved) or flag it in self-critique. The script does not check shell command strings; verify those yourself. Fetch and update if anything is ungrounded.
 5. **Cite your grounding**: Tell the user which decisions came from which kb file.
    - **No agent artifacts in code**: Never embed `kb_*.md` references, grounding notes, internal paths, run commands, or orchestration metadata in code comments or docstrings — code must be clean of all agent-internal context.
-6. **Keep the markdown**: Do not delete kb files. Ensure `fetched:` date is current before finishing.
+6. **Keep the markdown**: Do not delete kb files. Date them per the `fetched:` and `refreshed:` rule in `../../workers/WORKER_STANDARDS.md` (KB frontmatter format).
 
 ### Library URL discovery
 1. Fetch only URLs in the Source Registry or explicitly listed in the task brief.
@@ -80,7 +80,7 @@ sandbox/<project_name>/
 - **Intermediate artifacts** (PNGs, CSVs, working files): `Path(__file__).parent / "output"`, call `.mkdir(exist_ok=True)`.
 - **Final deliverables** (PDFs, structured outputs for the user): write to `../../output/` (project root `output/` directory).
 - **Archiving**: Owner-triggered only; never archive on your own. Completed projects move (never delete) to `../../output/archive/developer-sandbox/sandbox/<project_name>/`, with an `ARCHIVED.md` (date, reason, contents, original path) beside them. Keep the empty `./sandbox/`.
-- **Do not self-execute scripts**: Provide the run command in the deliverable. Only run if the task brief explicitly instructs it. The read-only import audit above is always allowed.
+- **Do not self-execute scripts**: Provide the run command in the deliverable. Only run if the task brief explicitly instructs it. The read-only import audit above is always allowed. Label any test count or pass/fail result not produced by a run as "traced, not run".
 - **Data source**: Use the data source specified in the task brief. If not specified, default to synthetic data and flag this assumption in self-critique.
 
 ## Security & Safety Constraints
