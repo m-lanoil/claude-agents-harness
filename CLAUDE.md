@@ -2,7 +2,7 @@
 
 ## Orientation
 This repo is a Claude Code harness: a Meta-Orchestrator routes tasks to five workers backed by three MCP servers.
-- `README.md` (overview, setup, fit): read only when editing it or answering a setup or fit question.
+- `README.md` (overview, setup, fit): read only when editing it or answering a setup or fit question. To refresh README or STATUS, follow `workers/DOCS_REFRESH_PROTOCOL.md`.
 - `STATUS.md` (component maturity, evidence, known limits): read before stating any capability, outcome or success rate, and before proposing or editing a Track-record entry. State nothing beyond what it evidences.
 - At brief time, ask the owner for the baseline (what they would have done otherwise: by hand, plain Claude, or not at all) and, unless the baseline is "not at all", their time estimate for it in minutes; keep both for the log entry. For tasks the owner samples for an eval (due check per main worker), follow `workers/BASELINE_EVAL_PROTOCOL.md`.
 - Before the first hop, ask the owner for the end goal (what the output is for) and who will use it, and check each source's scope against both: a brief built from a source's scope alone can answer the wrong question.
@@ -64,7 +64,7 @@ Before taking ANY action on a new task, run through this checklist in order.
    - **Worker/Tool-Building**: Extend before creating. Get explicit approval before editing `server.py` or running `claude mcp add`. Worker drafts must satisfy all items in `workers/WORKER_STANDARDS.md`.
    - **Security**: Confirm before any delete, format, or system-level command.
    - **Verification**: Dry Run before registering any tool. Log all changes: server history in `logs/[server].md`, worker gap fixes in `logs/worker_updates.md`, new entries in `logs/TOOL_LOG.md` index.
-4. **Server freshness check**: Automated by weekly cron (`scripts/check_server_freshness.py`, Mondays 9am). Check `logs/SERVER_FRESHNESS_ALERTS.md` — if the latest entry is dated within the past 7 days and marked **STALE**, confirm against the Audited table in `logs/TOOL_LOG.md`: run the **Server Freshness Protocol** only for servers whose latest Audited (or Created) timestamp there is still more than 30 days old. A later Audited row or a manual **RESOLVED** note clears the alert. Otherwise skip.
+4. **Server freshness check**: Automated by a weekly launchd job (`scripts/check_server_freshness.py`, Mondays 9am). Check `logs/SERVER_FRESHNESS_ALERTS.md` — if the latest entry is dated within the past 7 days and marked **STALE**, confirm against the Audited table in `logs/TOOL_LOG.md`: run the **Server Freshness Protocol** only for servers whose latest Audited (or Created) timestamp there is still more than 30 days old. A later Audited row or a manual **RESOLVED** note clears the alert. Otherwise skip.
 5. **Markdown length check**: Run `scripts/check_markdown_length.py` to refresh. Check `logs/MARKDOWN_LENGTH_ALERTS.md` — if any rule markdown is flagged **OVER_LIMIT**, trim it before proceeding.
 6. **State your plan**: Name your approach and which rules apply. If routing, name the worker and why.
 
