@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
-from typing import Optional
-from claude_agent_sdk import ClaudeAgentOptions
+from typing import Any, Optional
+from claude_agent_sdk import ClaudeAgentOptions, HookMatcher
 
 # Repo root: coordinator/worker_registry.py → coordinator/ → repo root
 _REPO_ROOT = Path(__file__).parent.parent
@@ -50,6 +50,46 @@ _ALL_MCP: dict[str, dict] = {
 }
 
 
+class PreCompactCounter:
+    """Counts the PreCompact hook events of one worker invocation.
+
+    Its on_pre_compact method is registered as the worker's PreCompact hook
+    callback. It only counts the event and keeps its trigger ("manual" or
+    "auto"); it returns an empty dict, which is no decision, so the worker's
+    behaviour is unchanged. It never raises.
+    """
+
+    def __init__(self) -> None:
+        self.count = 0
+        self.triggers: list[str] = []
+
+    async def on_pre_compact(self, input_data: Any, tool_use_id: Optional[str], context: Any) -> dict:
+        self.count += 1
+        try:
+            trigger = input_data.get("trigger")
+        except Exception:
+            trigger = None
+        self.triggers.append(str(trigger) if trigger is not None else "not reported")
+        return {}
+
+
+def precompact_counter(options: Any) -> Optional[PreCompactCounter]:
+    """Return the PreCompactCounter registered in options by build_options, else None.
+
+    Any options object without that registration (a test double, or options
+    built elsewhere) gives None. Never raises.
+    """
+    try:
+        for matcher in (getattr(options, "hooks", None) or {}).get("PreCompact", []):
+            for callback in getattr(matcher, "hooks", []):
+                owner = getattr(callback, "__self__", None)
+                if isinstance(owner, PreCompactCounter):
+                    return owner
+    except Exception:
+        return None
+    return None
+
+
 def build_validator_options() -> ClaudeAgentOptions:
     """Build read-only ClaudeAgentOptions for the Validator internal process.
 
@@ -75,6 +115,9 @@ def build_options(worker_name: str, resume: Optional[str] = None) -> ClaudeAgent
     The root CLAUDE.md (Meta-Orchestrator rules, an ancestor of the worker dir) and
     the owner's auto-memory are excluded via inline settings so a worker sees only
     its own rules.
+    Context-use signals: a fresh PreCompactCounter is registered as the PreCompact
+    hook callback (it counts, never decides; find it with precompact_counter), and
+    include_hook_events=True puts hook lifecycle events in the message stream.
     """
     worker_dir = WORKER_DIRS[worker_name]
     mcp = {name: _ALL_MCP[name] for name in _WORKER_MCP_NAMES[worker_name]}
@@ -88,4 +131,6 @@ def build_options(worker_name: str, resume: Optional[str] = None) -> ClaudeAgent
             "claudeMdExcludes": [str((_REPO_ROOT / "CLAUDE.md").resolve())],
             "autoMemoryEnabled": False,
         }),
+        hooks={"PreCompact": [HookMatcher(hooks=[PreCompactCounter().on_pre_compact])]},
+        include_hook_events=True,
     )
