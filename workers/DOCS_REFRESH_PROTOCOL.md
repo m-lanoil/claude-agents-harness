@@ -1,10 +1,10 @@
 # Docs Refresh Protocol
 
 Used by: Meta-Orchestrator
-Triggered when: the owner asks to refresh, update or audit `README.md` and/or `STATUS.md`.
+Triggered when: the owner asks to refresh, update or audit `README.md`, `docs/OPERATOR_GUIDE.md` and/or `STATUS.md`.
 
 ## Scope
-Targets are `README.md` and `STATUS.md`. Other rule markdown (`CLAUDE.md`, `workers/`, `pipeline/`, `TASTE.md`) is not audited for its rules, but any file the two docs cite is checked for its claims about current state: counts, dates, schedules, run history, "has run" or "has not run". Logs are history and are not checked. If the owner asks for a sweep, grep all tracked rule markdown for such state claims too.
+Targets are `README.md`, `docs/OPERATOR_GUIDE.md` and `STATUS.md`. Other rule markdown (`CLAUDE.md`, `workers/`, `pipeline/`, `TASTE.md`) is not audited for its rules, but any file the two docs cite is checked for its claims about current state: counts, dates, schedules, run history, "has run" or "has not run". Logs are history and are not checked. If the owner asks for a sweep, grep all tracked rule markdown for such state claims too.
 
 ## Steps (in order)
 1. **Open PRs.** Run `gh pr list`; for each open PR, diff its README, STATUS and cited-file changes against main. Settle merge order with the owner before editing, so the refresh does not collide with them.
