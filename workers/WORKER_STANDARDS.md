@@ -103,7 +103,7 @@ After any session that fetches new content, register each new source URL in the 
 | `clis.json` | CLI tools invoked as shell commands |
 | `other_sources.json` | Hardware specs, RFCs, platform docs, REST APIs, model cards, datasets, reports, reference pages |
 
-**How to register**: Edit the JSON file directly — add `"name": "url"` to the object and save. If the file does not exist yet, create it with `{}` first. Do not rely solely on the MCP tools (`add_library`, `add_cli`, `add_other_source`) — these files are gitignored and may not be present; direct editing is always safe. These registry JSON files are the one permitted write outside your sandbox list; list every entry you added in self-critique.
+**How to register**: Before registering, check every registry file for the URL (in coordinator mode, `--approved-urls` are pre-registered before you start); if it is already there, nothing to register: say so in self-critique. Edit the JSON file directly — add `"name": "url"` to the object and save. If the file does not exist yet, create it with `{}` first. Do not rely solely on the MCP tools (`add_library`, `add_cli`, `add_other_source`) — these files are gitignored and may not be present; direct editing is always safe. These registry JSON files are the one permitted write outside your sandbox list; list every entry you added in self-critique.
 
 **Python stdlib exemption**: `docs.python.org` sources are exempt from Source Registry registration only — do not add stdlib modules to any JSON. The kb file is still mandatory: propose the `docs.python.org` URL, wait for approval, fetch, and write `kb_[module].md` before writing any code that uses the module. All other KB rules (staleness check, frontmatter format, naming convention) still apply.
 
