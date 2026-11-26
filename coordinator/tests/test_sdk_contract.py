@@ -10,8 +10,11 @@ through `_invoke_worker` and `_invoke_validator`. The fake `query` binds its
 arguments with `inspect.signature` of the real `query`, so a wrong keyword fails.
 
 Live part (opt-in): one real call that costs a few tokens and one real failed call
-(bad model name) that costs none; both need the owner's authentication. They are
-skipped unless COORDINATOR_LIVE_SDK=1.
+(bad model name) that costs none, both with minimal options in place of
+build_options; plus one real call per worker (developer, scout) with the real
+build_options (MCP servers, settings, PreCompact hook, include_hook_events),
+about $0.13 each (a full worker session start). All need the owner's authentication and are skipped unless
+COORDINATOR_LIVE_SDK=1.
 
 Edge cases the SDK types allow are pinned too: a `ResultMessage.result` of None
 counts as empty text, a missing init session id falls back to the
@@ -751,3 +754,31 @@ def test_live_bad_model_returns_an_error_detail_and_does_not_raise(monkeypatch, 
 
     assert error_detail is not None
     assert "api_error_status=404" in error_detail
+
+
+@pytest.mark.skipif(
+    os.environ.get("COORDINATOR_LIVE_SDK") != "1",
+    reason=(
+        "live SDK test: set COORDINATOR_LIVE_SDK=1 to run it. It makes one real call "
+        "per worker (a full worker session start, about $0.13 each on 2026-11-26) and needs the owner's Claude authentication."
+    ),
+)
+@pytest.mark.parametrize("worker", ["developer", "scout"])
+def test_live_invoke_worker_with_the_real_worker_options(worker):
+    # The real build_options, not a replacement: MCP servers, settings, the
+    # PreCompact hook and include_hook_events all reach the real query().
+    assert orchestrator.build_options is worker_registry.build_options
+
+    signals = orchestrator._ContextSignals()
+    text, session_id, error_detail = asyncio.run(
+        orchestrator._invoke_worker(
+            worker, "Reply with exactly: OK. Do not use any tools.", signals=signals
+        )
+    )
+
+    assert error_detail is None
+    assert isinstance(text, str) and text.strip()
+    assert isinstance(session_id, str) and session_id
+    assert signals.precompact is not None, "no PreCompactCounter found in the options"
+    rendered = signals.render()
+    assert rendered[-1].endswith("none"), rendered[-1]
