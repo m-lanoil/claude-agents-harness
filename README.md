@@ -33,25 +33,25 @@ flowchart TD
 - **Write denies and sandboxed Bash.** Per-worker settings templates deny writes to protected repo paths and sandbox Bash for the four workers that have it (`workers/*/.claude/settings.local.template.json`, verified live 2026-11-07).
 - **Agent SDK coordinator.** Hop sequencing, a 3-part acceptance check (file exists, required sections, self-critique present), a read-only Validator and human gates (`coordinator/`).
 - **Test suite and CI.** One command runs six offline suites, each in its own `uv` environment (`scripts/run_tests.py`); a workflow runs it on push and pull request (`.github/workflows/tests.yml`); template tests check that config templates parse and agree with the Workers table (`tests/test_templates.py`).
-- **Grounding and import checkers.** A grounding quote checker (`scripts/check_grounding.py`) and an import-versus-kb checker (`scripts/check_imports.py`), run by hand at acceptance.
+- **Grounding, import and docs state checkers.** A grounding quote checker (`scripts/check_grounding.py`) and an import-versus-kb checker (`scripts/check_imports.py`), run by hand at acceptance; a read-only docs state checker (`scripts/check_docs_state.py`) that starts each docs refresh.
 
 ## Evidence
 
-From "Proven (evidence)" in [`STATUS.md`](STATUS.md), last reviewed 2026-11-20. A dash means the row carries no date there.
+From "Proven (evidence)" in [`STATUS.md`](STATUS.md), last reviewed 2026-11-26. A dash means the row carries no date there.
 
 | Claim | Evidence | Date |
 |---|---|---|
 | The three MCP servers exist with the tools named in the docs | `servers/*/server.py` (11, 5 and 1 tools) | — |
 | Servers are reproducibly pinned | `servers/*/uv.lock`, `servers/*/pyproject.toml` | — |
 | A coordinator exists with an automated acceptance check and a read-only Validator | `coordinator/acceptance.py`, `coordinator/orchestrator.py`, `coordinator/worker_registry.py` | — |
-| Coordinator mode is available per task but lightly proven: 270 offline tests; 2 opt-in live tests passed once; three live single-hop Developer runs on internal tasks (two accepted, one wrongly failed by a path-base defect, since fixed); one live single-hop Scout run; the blocked-fetch resume has not run live | `workers/MODE_SELECTION_PROTOCOL.md`, `coordinator/tests/` | Override lifted 2026-11-09; Developer runs 2026-11-12; Scout run 2026-11-13; live tests 2026-11-20 |
+| Coordinator mode is available per task but lightly proven: 285 offline tests; 4 opt-in live tests passed (2 smoke tests, 2 with the real Developer and Scout options); ten live single-hop runs, nine Developer on internal tasks (one wrongly failed by a path-base defect, since fixed) and one Scout; no multi-hop chain has run live; the blocked-fetch resume has not run live | `workers/MODE_SELECTION_PROTOCOL.md`, `coordinator/tests/`, owner's Track-record entries | Override lifted 2026-11-09; Developer runs 2026-11-12, 2026-11-20 and 2026-11-26; Scout run 2026-11-13; live tests 2026-11-20 and 2026-11-26 |
 | All five pipeline phase files exist and define their outputs | `pipeline/phases/01_research.md` to `05_publicize.md` | — |
 | A checker can verify a pipeline run's artifacts, ordering and the human gate | `scripts/check_pipeline_run.py` | — |
 | Five workers are defined | `workers/*/CLAUDE.md` | — |
 | Runtime state is excluded from version control; templates are tracked | `.gitignore`, `*_TEMPLATE.*`, `*.template.json` | — |
-| Build-out history: 151 commits | `git rev-list --count 5b5d3fe` (e4f93d5 to 5b5d3fe; a snapshot) | 2026-03-30 to 2026-11-20 |
+| Build-out history: 171 commits | `git rev-list --count 2862621` (e4f93d5 to 2862621; a snapshot) | 2026-03-30 to 2026-11-26 |
 | `docs_fetcher` has offline tests | 174 passed, `servers/docs_fetcher/tests/` | — |
-| All six maintenance scripts have offline tests; servers, hooks, config templates and coordinator are covered by 929 passing tests | `scripts/tests/`, `servers/*/tests/`, `tests/`, `coordinator/tests/`, `scripts/run_tests.py` | Run 2026-11-20 |
+| All seven maintenance scripts have offline tests; servers, hooks, config templates and coordinator are covered by 988 passing tests | `scripts/tests/`, `servers/*/tests/`, `tests/`, `coordinator/tests/`, `scripts/run_tests.py` | Run 2026-11-26 |
 | Write denies and sandboxed Bash blocked test writes from the worker folders | Owner's Track-record entries | 2026-11-07 |
 | Fetch cap refuses over-budget fetches | Owner-run live check, Track-record entry | 2026-11-07 |
 | Owner-reported, sanitized task outcomes | Owner's local Track-record log (not tracked) | — |
