@@ -8,6 +8,7 @@ import subprocess
 PROJECT_ROOT = Path(__file__).parent.parent
 KB_LOG = PROJECT_ROOT / "logs/KB_STALENESS_LOG.md"
 STALE_DAYS = 30
+REFRESHED_RE = re.compile(r'\s+-\s+"(.+)":\s*(\d{4}-\d{2}-\d{2})\s*')
 TODAY = date.today()
 
 KB_DIRS = {
@@ -29,6 +30,48 @@ def get_fetched_date(kb_file):
         return None
 
 
+def get_refreshed(kb_file):
+    """Return [(heading, date)] from the refreshed: list in the leading --- block.
+
+    Entries are indented `- "heading": YYYY-MM-DD` lines after an unindented `refreshed:`
+    line, up to the next unindented line or the closing ---. Malformed entries are skipped.
+    """
+    lines = kb_file.read_text().splitlines()
+    if not lines or lines[0].strip() != "---":
+        return []
+    entries = []
+    in_list = False
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        if not line.strip():
+            continue
+        if not line[0].isspace():
+            in_list = line.rstrip() == "refreshed:"
+            continue
+        m = REFRESHED_RE.fullmatch(line) if in_list else None
+        if not m:
+            continue
+        try:
+            entries.append((m.group(1), date.fromisoformat(m.group(2))))
+        except ValueError:
+            continue
+    return entries
+
+
+def recent_sections(kb_file):
+    """Refreshed sections of kb_file dated within STALE_DAYS of TODAY."""
+    return [(heading, day) for heading, day in get_refreshed(kb_file)
+            if (TODAY - day).days <= STALE_DAYS]
+
+
+def sections_cell(sections):
+    if not sections:
+        return "none"
+    cells = [f'"{heading}" ({day})' for heading, day in sections]
+    return ", ".join(cells).replace("|", "\\|")
+
+
 def scan():
     stale = []
     for worker, kb_dir in KB_DIRS.items():
@@ -40,7 +83,7 @@ def scan():
                 continue
             age = (TODAY - fetched).days
             if age > STALE_DAYS:
-                stale.append((worker, kb_file.name, fetched, age))
+                stale.append((worker, kb_file.name, fetched, age, recent_sections(kb_file)))
     return stale
 
 
@@ -53,11 +96,11 @@ def append_entry(stale):
     lines = [f"\n## {TODAY}\n"]
     if stale:
         lines += [
-            "| Worker | File | Fetched | Age (days) |",
-            "|--------|------|---------|------------|",
+            f"| Worker | File | Fetched | Age (days) | Sections refreshed <={STALE_DAYS} days |",
+            "|--------|------|---------|------------|------------------------------|",
         ]
-        for worker, filename, fetched, age in stale:
-            lines.append(f"| {worker} | `{filename}` | {fetched} | {age} |")
+        for worker, filename, fetched, age, sections in stale:
+            lines.append(f"| {worker} | `{filename}` | {fetched} | {age} | {sections_cell(sections)} |")
     else:
         lines.append("Clean run: All kb files current — no stale entries.")
     lines.append("")

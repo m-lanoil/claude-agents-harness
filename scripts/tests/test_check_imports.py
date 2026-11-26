@@ -642,3 +642,139 @@ def test_parse_date_strict(ci):
     assert ci.parse_date("20261107") is None
     assert ci.parse_date("2026-02-30") is None
     assert ci.parse_date("") is None
+
+
+# --- refreshed: sections --------------------------------------------------
+
+def kb_refreshed(kb, name, library, fetched, entries, after=()):
+    lines = ["---", f"library: {library}", f"fetched: {fetched}", "refreshed:", *entries, *after, "---", "body"]
+    return write(kb / name, "\n".join(lines) + "\n")
+
+
+def test_stale_line_lists_recent_refreshed_section_with_date(ci, env):
+    project, kb = env
+    write(project / "a.py", "import json\n")
+    kb_refreshed(kb, "kb_json.md", "json", "2026-10-16", ['  - "Basic Usage": 2026-11-26'],
+                 after=["note_2026_11_26: partial re-read"])
+    code, text = run(ci, project, kb, today="2026-11-26")
+    assert code == 1
+    assert modules(text, "STALE") == ["json"]
+    assert section(text, "STALE")[0].endswith(
+        'kb_json.md fetched 2026-10-16 (41 days); refreshed <=30 days: "Basic Usage" (2026-11-26)'
+    )
+
+
+def test_old_refreshed_section_not_listed(ci, env):
+    project, kb = env
+    write(project / "a.py", "import json\n")
+    kb_refreshed(kb, "kb_json.md", "json", "2026-09-01",
+                 ['  - "Edge": 2026-10-08', '  - "Old": 2026-10-07'])
+    _, text = run(ci, project, kb)
+    line = section(text, "STALE")[0]
+    assert line.endswith('refreshed <=30 days: "Edge" (2026-10-08)')
+    assert "Old" not in line
+
+
+def test_only_old_refreshed_sections_says_none(ci, env):
+    project, kb = env
+    write(project / "a.py", "import json\n")
+    kb_refreshed(kb, "kb_json.md", "json", "2026-09-01", ['  - "Old": 2026-09-02'])
+    _, text = run(ci, project, kb)
+    assert section(text, "STALE")[0].endswith("refreshed <=30 days: none")
+
+
+def test_stale_without_refreshed_says_none(ci, env):
+    project, kb = env
+    write(project / "a.py", "import numpy\n")
+    kb_file(kb, "kb_numpy.md", "numpy", "2026-10-07")
+    _, text = run(ci, project, kb)
+    assert section(text, "STALE")[0].endswith("kb_numpy.md fetched 2026-10-07 (31 days); refreshed <=30 days: none")
+
+
+def test_undated_stale_file_also_reports_sections(ci, env):
+    project, kb = env
+    write(project / "a.py", "import numpy\n")
+    write(kb / "kb_numpy.md", '---\nlibrary: numpy\nrefreshed:\n  - "S": 2026-11-01\n---\n')
+    _, text = run(ci, project, kb)
+    assert section(text, "STALE")[0].endswith('kb_numpy.md (no valid fetched date); refreshed <=30 days: "S" (2026-11-01)')
+
+
+def test_max_age_also_bounds_listed_sections(ci, env):
+    project, kb = env
+    write(project / "a.py", "import json\n")
+    kb_refreshed(kb, "kb_json.md", "json", "2026-09-01",
+                 ['  - "Near": 2026-11-02', '  - "Far": 2026-10-20'])
+    _, text = run(ci, project, kb, "--max-age", "10")
+    assert section(text, "STALE")[0].endswith('refreshed <=10 days: "Near" (2026-11-02)')
+
+
+def test_each_stale_file_reports_its_own_sections(ci, env):
+    project, kb = env
+    write(project / "a.py", "import pytest\n")
+    kb_refreshed(kb, "kb_a.md", "pytest", "2026-01-01", ['  - "A1": 2026-11-01', '  - "A2": 2026-11-02'])
+    kb_file(kb, "kb_b.md", "pytest", "2026-02-01")
+    _, text = run(ci, project, kb)
+    line = section(text, "STALE")[0]
+    assert ('kb_a.md fetched 2026-01-01 (310 days); refreshed <=30 days: "A1" (2026-11-01), "A2" (2026-11-02); '
+            "kb_b.md fetched 2026-02-01 (279 days); refreshed <=30 days: none") in line
+
+
+def test_recent_refreshed_section_does_not_make_file_ok(ci, env):
+    project, kb = env
+    write(project / "a.py", "import json\nimport numpy\n")
+    kb_refreshed(kb, "kb_json.md", "json", "2026-09-01", ['  - "Basic Usage": 2026-11-07'])
+    kb_file(kb, "kb_numpy.md", "numpy")
+    code, text = run(ci, project, kb)
+    assert code == 1
+    headings = [line for line in text.splitlines() if not line.startswith("  ")]
+    assert headings[:3] == ["MISSING (0)", "STALE (1)", "OK (1)"]
+    assert modules(text, "STALE") == ["json"]
+
+
+def test_ok_and_missing_lines_unchanged_by_refreshed(ci, env):
+    project, kb = env
+    write(project / "a.py", "import json\nimport absent_mod\n")
+    kb_refreshed(kb, "kb_json.md", "json", "2026-11-01", ['  - "Basic Usage": 2026-11-05'])
+    code, text = run(ci, project, kb)
+    assert code == 1
+    assert section(text, "OK") == ["json  (first seen a.py:1)  kb_json.md fetched 2026-11-01 (6 days)"]
+    assert section(text, "MISSING") == ["absent_mod  (first seen a.py:2)  no kb file"]
+    assert "refreshed" not in text
+
+
+def test_fresh_with_refreshed_exit_zero(ci, env):
+    project, kb = env
+    write(project / "a.py", "import json\n")
+    kb_refreshed(kb, "kb_json.md", "json", "2026-11-01", ['  - "Basic Usage": 2026-11-05'])
+    code, text = run(ci, project, kb)
+    assert code == 0
+    assert modules(text, "OK") == ["json"]
+
+
+def test_parse_refreshed_list_followed_by_another_key(ci):
+    text = ('---\nlibrary: x\nnote: a\nrefreshed:\n  - "A": 2026-11-01\n'
+            'note_2026_11_26: b\n  - "Not a section": 2026-11-02\n---\n')
+    assert ci.parse_refreshed(text) == [("A", ci.parse_date("2026-11-01"))]
+
+
+def test_parse_refreshed_skips_malformed_entries(ci):
+    text = ("---\nrefreshed:\n"
+            '  - "Bad date": 2026-02-30\n'
+            '  - "Word": soon\n'
+            "  - Unquoted: 2026-11-01\n"
+            '  - "No date":\n'
+            "  stray text\n"
+            "\n"
+            '  - "Good": 2026-11-03\n'
+            "---\n")
+    assert ci.parse_refreshed(text) == [("Good", ci.parse_date("2026-11-03"))]
+
+
+def test_parse_refreshed_only_reads_leading_block(ci):
+    assert ci.parse_refreshed('---\nfetched: 2026-11-01\n---\nrefreshed:\n  - "B": 2026-11-01\n') == []
+    assert ci.parse_refreshed('# title\nrefreshed:\n  - "B": 2026-11-01\n') == []
+    assert ci.parse_refreshed("") == []
+
+
+def test_parse_refreshed_unclosed_block_is_not_fatal(ci):
+    assert ci.parse_refreshed('---\nrefreshed:\n  - "A": 2026-11-01\n') == [("A", ci.parse_date("2026-11-01"))]

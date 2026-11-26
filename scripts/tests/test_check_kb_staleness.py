@@ -87,7 +87,7 @@ def test_scan_at_exactly_30_days_is_not_stale(stale_mod):
 def test_scan_at_31_days_is_stale(stale_mod):
     fetched = days_ago(31)
     (stale_mod.dev_dir / "kb_edge.md").write_text(kb_text(fetched))
-    assert stale_mod.ns["scan"]() == [("developer", "kb_edge.md", fetched, 31)]
+    assert stale_mod.ns["scan"]() == [("developer", "kb_edge.md", fetched, 31, [])]
 
 
 def test_scan_skips_a_missing_kb_directory(stale_mod, monkeypatch, tmp_path):
@@ -96,7 +96,7 @@ def test_scan_skips_a_missing_kb_directory(stale_mod, monkeypatch, tmp_path):
         stale_mod.live_globals, "KB_DIRS",
         {"architect": tmp_path / "does_not_exist", "servers": stale_mod.srv_dir},
     )
-    assert stale_mod.ns["scan"]() == [("servers", "kb_old.md", days_ago(60), 60)]
+    assert stale_mod.ns["scan"]() == [("servers", "kb_old.md", days_ago(60), 60, [])]
 
 
 def test_scan_skips_files_without_a_valid_date_and_non_kb_names(stale_mod):
@@ -112,10 +112,10 @@ def test_scan_lists_files_sorted_per_worker_in_kb_dirs_order(stale_mod):
     (stale_mod.dev_dir / "kb_a.md").write_text(kb_text(days_ago(50)))
     (stale_mod.srv_dir / "kb_c.md").write_text(kb_text(days_ago(35)))
     result = stale_mod.ns["scan"]()
-    assert [(w, n) for w, n, _, _ in result] == [
+    assert [(w, n) for w, n, _, _, _ in result] == [
         ("developer", "kb_a.md"), ("developer", "kb_b.md"), ("servers", "kb_c.md"),
     ]
-    assert [age for _, _, _, age in result] == [50, 40, 35]
+    assert [age for _, _, _, age, _ in result] == [50, 40, 35]
 
 
 # ensure_header
@@ -142,21 +142,24 @@ def test_append_entry_clean_case(stale_mod):
 def test_append_entry_stale_case_writes_a_table_row_per_file(stale_mod):
     stale_mod.ns["ensure_header"]()
     stale_mod.ns["append_entry"]([
-        ("developer", "kb_a.md", date(2026, 10, 1), 44),
-        ("servers", "kb_b.md", date(2026, 9, 1), 74),
+        ("developer", "kb_a.md", date(2026, 10, 1), 44, []),
+        ("servers", "kb_b.md", date(2026, 9, 1), 74, []),
     ])
     text = stale_mod.log_path.read_text()
     assert text.startswith("# KB Staleness Log\n\n## 2026-11-14\n")
-    assert "| Worker | File | Fetched | Age (days) |\n|--------|------|---------|------------|\n" in text
-    assert "| developer | `kb_a.md` | 2026-10-01 | 44 |\n" in text
-    assert "| servers | `kb_b.md` | 2026-09-01 | 74 |\n" in text
+    assert (
+        "| Worker | File | Fetched | Age (days) | Sections refreshed <=30 days |\n"
+        "|--------|------|---------|------------|------------------------------|\n"
+    ) in text
+    assert "| developer | `kb_a.md` | 2026-10-01 | 44 | none |\n" in text
+    assert "| servers | `kb_b.md` | 2026-09-01 | 74 | none |\n" in text
     assert CLEAN_LINE not in text
 
 
 def test_append_entry_appends_and_keeps_earlier_entries(stale_mod):
     stale_mod.ns["ensure_header"]()
     stale_mod.ns["append_entry"]([])
-    stale_mod.ns["append_entry"]([("developer", "kb_a.md", date(2026, 10, 1), 44)])
+    stale_mod.ns["append_entry"]([("developer", "kb_a.md", date(2026, 10, 1), 44, [])])
     text = stale_mod.log_path.read_text()
     assert text.count("## 2026-11-14") == 2
     assert text.index(CLEAN_LINE) < text.index("| developer | `kb_a.md`")
@@ -172,9 +175,9 @@ def test_main_stale_run_logs_prints_and_notifies(stale_mod, capsys):
     assert capsys.readouterr().out == "STALE: 1 kb file(s) flagged. Written to KB_STALENESS_LOG.md\n"
     text = stale_mod.log_path.read_text()
     assert text.startswith("# KB Staleness Log\n")
-    assert f"| developer | `kb_old.md` | {fetched} | 44 |" in text
+    assert f"| developer | `kb_old.md` | {fetched} | 44 | none |" in text
     assert "kb_fresh.md" not in text
-    assert stale_mod.notified == [[("developer", "kb_old.md", fetched, 44)]]
+    assert stale_mod.notified == [[("developer", "kb_old.md", fetched, 44, [])]]
 
 
 def test_main_clean_run_logs_prints_and_does_not_notify(stale_mod, capsys):
@@ -191,3 +194,95 @@ def test_main_run_twice_keeps_one_header_and_two_entries(stale_mod):
     text = stale_mod.log_path.read_text()
     assert text.count("# KB Staleness Log") == 1
     assert text.count("## 2026-11-14") == 2
+
+
+# refreshed: sections
+
+def kb_refreshed(fetched, refreshed_lines, after=()):
+    lines = ["---", "library: x", f"fetched: {fetched}", "refreshed:", *refreshed_lines, *after, "---", "body"]
+    return "\n".join(lines) + "\n"
+
+
+def test_get_refreshed_reads_entries_in_order(stale_mod, tmp_path):
+    f = tmp_path / "kb_a.md"
+    f.write_text(kb_refreshed("2026-09-01", ['  - "Basic Usage": 2026-11-10', '  - "API": 2026-10-01']))
+    assert stale_mod.ns["get_refreshed"](f) == [("Basic Usage", date(2026, 11, 10)), ("API", date(2026, 10, 1))]
+
+
+def test_get_refreshed_list_followed_by_another_key(stale_mod, tmp_path):
+    f = tmp_path / "kb_a.md"
+    f.write_text(kb_refreshed(
+        "2026-09-01", ['  - "Basic Usage": 2026-11-10'],
+        after=["note_2026_11_26: re-read", '  - "Not a section": 2026-11-10'],
+    ))
+    assert stale_mod.ns["get_refreshed"](f) == [("Basic Usage", date(2026, 11, 10))]
+
+
+def test_get_refreshed_skips_malformed_entries(stale_mod, tmp_path):
+    f = tmp_path / "kb_a.md"
+    f.write_text(kb_refreshed("2026-09-01", [
+        '  - "Bad date": 2026-02-30',
+        '  - "Word date": yesterday',
+        '  - Unquoted: 2026-11-10',
+        '  - "No date":',
+        '  garbage line',
+        '',
+        '  - "Good": 2026-11-10',
+    ]))
+    assert stale_mod.ns["get_refreshed"](f) == [("Good", date(2026, 11, 10))]
+
+
+def test_get_refreshed_ignores_lists_outside_the_front_matter(stale_mod, tmp_path):
+    f = tmp_path / "kb_a.md"
+    f.write_text('---\nfetched: 2026-09-01\n---\nrefreshed:\n  - "Body": 2026-11-10\n')
+    assert stale_mod.ns["get_refreshed"](f) == []
+    g = tmp_path / "kb_b.md"
+    g.write_text('no front matter\nrefreshed:\n  - "Body": 2026-11-10\n')
+    assert stale_mod.ns["get_refreshed"](g) == []
+
+
+def test_scan_lists_recent_refreshed_sections_and_drops_old_ones(stale_mod):
+    (stale_mod.dev_dir / "kb_json.md").write_text(kb_refreshed(days_ago(41), [
+        f'  - "Basic Usage": {days_ago(0)}',
+        f'  - "Edge": {days_ago(30)}',
+        f'  - "Old": {days_ago(31)}',
+    ]))
+    assert stale_mod.ns["scan"]() == [(
+        "developer", "kb_json.md", days_ago(41), 41,
+        [("Basic Usage", days_ago(0)), ("Edge", days_ago(30))],
+    )]
+
+
+def test_refreshed_sections_do_not_rescue_a_stale_file(stale_mod, capsys):
+    (stale_mod.dev_dir / "kb_json.md").write_text(kb_refreshed(days_ago(41), [f'  - "Basic Usage": {days_ago(0)}']))
+    stale_mod.ns["main"]()
+    assert capsys.readouterr().out == "STALE: 1 kb file(s) flagged. Written to KB_STALENESS_LOG.md\n"
+    assert len(stale_mod.notified) == 1
+
+
+def test_main_log_row_lists_recent_sections_with_dates(stale_mod):
+    (stale_mod.dev_dir / "kb_json.md").write_text(kb_refreshed(
+        "2026-10-04", ['  - "Basic Usage": 2026-11-14', '  - "Old": 2026-10-10'],
+        after=["note_2026_11_26: partial"],
+    ))
+    stale_mod.ns["main"]()
+    assert '| developer | `kb_json.md` | 2026-10-04 | 41 | "Basic Usage" (2026-11-14) |\n' in stale_mod.log_path.read_text()
+
+
+def test_main_log_row_says_none_when_only_old_sections(stale_mod):
+    (stale_mod.dev_dir / "kb_a.md").write_text(kb_refreshed("2026-10-04", ['  - "Old": 2026-10-10']))
+    stale_mod.ns["main"]()
+    assert "| developer | `kb_a.md` | 2026-10-04 | 41 | none |\n" in stale_mod.log_path.read_text()
+
+
+def test_sections_cell_joins_and_escapes_pipes(stale_mod):
+    cell = stale_mod.ns["sections_cell"]([("A | B", date(2026, 11, 1)), ("C", date(2026, 11, 2))])
+    assert cell == '"A \\| B" (2026-11-01), "C" (2026-11-02)'
+
+
+def test_fresh_file_with_refreshed_list_is_not_logged(stale_mod, capsys):
+    (stale_mod.dev_dir / "kb_a.md").write_text(kb_refreshed(days_ago(5), [f'  - "S": {days_ago(1)}']))
+    stale_mod.ns["main"]()
+    assert capsys.readouterr().out == "All kb files current as of 2026-11-14.\n"
+    assert CLEAN_LINE in stale_mod.log_path.read_text()
+    assert stale_mod.notified == []
