@@ -5,6 +5,8 @@ Usage: python3 check_imports.py <project_dir> --kb <dir> [--alias <file>]
                                 [--max-age 30] [--today YYYY-MM-DD]
 Exit codes: 0 all covered and fresh, 1 any missing or stale, 2 bad invocation.
 The output is a list for human judgement; it writes only to stdout.
+Each STALE kb file also lists its frontmatter `refreshed:` sections dated within --max-age
+(or "none"); these sections are reported only and do not change the verdict.
 Use an alias file (`bs4=beautifulsoup4`) where the import name differs from the kb library
 name. Standard-library modules are not filtered, so any without a kb file appear as MISSING.
 Shell command strings are not checked.
@@ -16,6 +18,7 @@ import re
 from pathlib import Path
 
 DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+REFRESHED_RE = re.compile(r'\s+-\s+"(.+)":\s*(\S+)\s*')
 NOT_CHECKED = "NOT CHECKED: shell command strings, dynamic imports, imports in non-.py files"
 
 
@@ -58,8 +61,43 @@ def parse_frontmatter(text):
     return library, fetched
 
 
+def parse_refreshed(text):
+    """Return [(heading, date)] from the refreshed: list in a kb file's leading --- block.
+
+    Entries are indented `- "heading": YYYY-MM-DD` lines after an unindented `refreshed:`
+    line, up to the next unindented line or the closing ---. Malformed entries are skipped.
+    """
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return []
+    entries = []
+    in_list = False
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        if not line.strip():
+            continue
+        if not line[0].isspace():
+            in_list = line.rstrip() == "refreshed:"
+            continue
+        if in_list:
+            match = REFRESHED_RE.fullmatch(line)
+            if match:
+                refreshed = parse_date(match.group(2))
+                if refreshed is not None:
+                    entries.append((match.group(1), refreshed))
+    return entries
+
+
+def recent_sections(refreshed, today, max_age):
+    """Describe the refreshed sections dated within max_age days, or say none."""
+    recent = [f'"{heading}" ({day.isoformat()})' for heading, day in refreshed
+              if (today - day).days <= max_age]
+    return f"refreshed <={max_age} days: " + (", ".join(recent) if recent else "none")
+
+
 def load_kb(kb_dir):
-    """Map normalised library key -> list of (path, fetched_date)."""
+    """Map normalised library key -> list of (path, fetched_date, refreshed_entries)."""
     kb = {}
     for path in sorted(kb_dir.rglob("*.md")):
         if not path.is_file():
@@ -70,7 +108,7 @@ def load_kb(kb_dir):
             continue
         library, fetched = parse_frontmatter(text)
         if library:
-            kb.setdefault(library, []).append((path, fetched))
+            kb.setdefault(library, []).append((path, fetched, parse_refreshed(text)))
     return kb
 
 
@@ -160,19 +198,24 @@ def match_files(module, kb, alias):
 
 
 def classify(entries, today, max_age):
-    """Return (status, details) for one module's matching kb entries."""
+    """Return (status, details) for one module's matching kb entries.
+
+    The status depends on fetched: dates only; STALE details add each file's recent sections.
+    """
     if not entries:
         return "MISSING", "no kb file"
-    dated = [d for _, d in entries if d is not None]
+    dated = [d for _, d, _ in entries if d is not None]
+    stale = not (dated and (today - max(dated)).days <= max_age)
     details = []
-    for path, fetched in entries:
+    for path, fetched, refreshed in entries:
         if fetched is None:
-            details.append(f"{path.name} (no valid fetched date)")
+            detail = f"{path.name} (no valid fetched date)"
         else:
-            details.append(f"{path.name} fetched {fetched.isoformat()} ({(today - fetched).days} days)")
-    if dated and (today - max(dated)).days <= max_age:
-        return "OK", "; ".join(details)
-    return "STALE", "; ".join(details)
+            detail = f"{path.name} fetched {fetched.isoformat()} ({(today - fetched).days} days)"
+        if stale:
+            detail += "; " + recent_sections(refreshed, today, max_age)
+        details.append(detail)
+    return ("STALE" if stale else "OK"), "; ".join(details)
 
 
 def build_parser():
