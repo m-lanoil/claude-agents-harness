@@ -3,7 +3,8 @@
     "allow": [
       "Read(/<YOUR_PROJECT_ROOT>/**)",
       "mcp__docs_fetcher__fetch_url",
-      "mcp__docs_fetcher__add_library"
+      "mcp__docs_fetcher__add_library",
+      "mcp__docs_fetcher__get_fetch_stats"
     ],
     "deny": [
       "Edit(/<YOUR_PROJECT_ROOT>/CLAUDE.md)",
