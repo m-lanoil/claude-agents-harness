@@ -51,7 +51,7 @@
 - That the coordinator or its Validator work beyond four single-hop runs (three internal Developer runs on 2026-11-12, one Scout run on 2026-11-13); the Validator's behaviour on the Developer runs was not reviewed, and the offline tests use a stubbed `query`. The live SDK smoke tests ran once on 2026-11-20 (2 passed) and cover only the init-message session ID and the real error path, not the Validator, worker tools or MCP servers, or the brief record.
 - That worker sessions no longer inherit the root `CLAUDE.md` and auto-memory: the exclusion settings (67adc98) are set in the coordinator and the five templates and covered by offline tests, but no live session was checked.
 - That grounding and staleness rules are followed on every task: `check_grounding.py` and `check_imports.py` run only when invoked at acceptance. Write denies, the sandbox and the fetch cap are enforced; see Known limits.
-- Fresh-clone setup success: the setup steps in `README.md` have not been run on a fresh clone.
+- Fresh-clone setup success: the setup steps in `docs/OPERATOR_GUIDE.md` have not been run on a fresh clone.
 
 ## Known limits
 

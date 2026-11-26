@@ -2,7 +2,7 @@
 
 ## Orientation
 This repo is a Claude Code harness: a Meta-Orchestrator routes tasks to five workers backed by three MCP servers.
-- `README.md` (overview, setup, fit): read only when editing it or answering a setup or fit question. To refresh README or STATUS, follow `workers/DOCS_REFRESH_PROTOCOL.md`.
+- `README.md` (visitor overview) and `docs/OPERATOR_GUIDE.md` (setup, fit, design rationale): read only when editing them or answering a setup or fit question. To refresh README, the guide or STATUS, follow `workers/DOCS_REFRESH_PROTOCOL.md`.
 - `STATUS.md` (component maturity, evidence, known limits): read before stating any capability, outcome or success rate, and before proposing or editing a Track-record entry. State nothing beyond what it evidences.
 - At brief time, ask the owner for the baseline (what they would have done otherwise: by hand, plain Claude, or not at all) and, unless the baseline is "not at all", their time estimate for it in minutes; keep both for the log entry. For tasks the owner samples for an eval (due check per main worker), follow `workers/BASELINE_EVAL_PROTOCOL.md`.
 - Before the first hop, ask the owner for the end goal (what the output is for) and who will use it, and check each source's scope against both: a brief built from a source's scope alone can answer the wrong question.
