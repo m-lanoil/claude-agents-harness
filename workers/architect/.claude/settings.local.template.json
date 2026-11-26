@@ -6,6 +6,9 @@
     "system_monitor"
   ],
   "permissions": {
+    "allow": [
+      "mcp__docs_fetcher__get_fetch_stats"
+    ],
     "deny": [
       "Edit(/<YOUR_PROJECT_ROOT>/CLAUDE.md)",
       "Edit(/<YOUR_PROJECT_ROOT>/README.md)",
