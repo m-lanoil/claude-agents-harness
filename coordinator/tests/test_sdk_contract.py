@@ -50,12 +50,18 @@ from coordinator.schemas import RoutingPrompt, WorkerResult
 WORKERS = ("developer", "architect", "content", "researcher", "scout")
 
 # Fields each builder passes to ClaudeAgentOptions(...), by keyword.
-WORKER_PASSED = {"allowed_tools", "mcp_servers", "permission_mode", "cwd", "resume", "settings"}
+WORKER_PASSED = {
+    "allowed_tools", "mcp_servers", "permission_mode", "cwd", "resume", "settings",
+    "hooks", "include_hook_events",
+}
 VALIDATOR_PASSED = {"allowed_tools", "mcp_servers", "permission_mode", "cwd", "setting_sources"}
 
 # Fields whose value differs from the dataclass default on the returned object.
 # mcp_servers={} equals the default, so it only shows in the passed-keyword sets.
-WORKER_NON_DEFAULT = {"allowed_tools", "mcp_servers", "permission_mode", "cwd", "settings"}
+WORKER_NON_DEFAULT = {
+    "allowed_tools", "mcp_servers", "permission_mode", "cwd", "settings",
+    "hooks", "include_hook_events",
+}
 VALIDATOR_NON_DEFAULT = {"allowed_tools", "permission_mode", "cwd", "setting_sources"}
 
 _QUERY_SIG = inspect.signature(query)

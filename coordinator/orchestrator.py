@@ -11,10 +11,18 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from claude_agent_sdk import ResultError, query
+from claude_agent_sdk import (
+    AssistantMessage,
+    ConversationResetMessage,
+    HookEventMessage,
+    ResultError,
+    SystemMessage,
+    TaskNotificationMessage,
+    query,
+)
 
 from .schemas import RoutingPrompt, WorkerResult, AcceptanceResult, ValidatorResult
-from .worker_registry import WORKER_DIRS, build_options, build_validator_options
+from .worker_registry import WORKER_DIRS, build_options, build_validator_options, precompact_counter
 from .acceptance import parse_worker_result, acceptance_check
 
 _REPO_ROOT = Path(__file__).parent.parent
@@ -228,10 +236,240 @@ def _sdk_error_detail_from_exception(exc: BaseException) -> str:
     )
 
 
+# ---------------------------------------------------------------------------
+# Context-use signals of one worker invocation (written into the brief record)
+# ---------------------------------------------------------------------------
+
+_NOT_REPORTED = "not reported"
+# SystemMessage subtypes _invoke_worker acts on; any other subtype is listed raw.
+_HANDLED_SYSTEM_SUBTYPES = frozenset({"init"})
+_STEP_INPUT_KEYS = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+_MODEL_INPUT_KEYS = ("inputTokens", "cacheReadInputTokens", "cacheCreationInputTokens")
+
+
+def _shown(value) -> str:
+    """A field value as written in a result entry: None becomes "not reported"."""
+    return _NOT_REPORTED if value is None else str(value)
+
+
+class _ContextSignals:
+    """Context-use signals gathered from the message stream of one worker invocation.
+
+    attach_options() finds the PreCompact counter that build_options registered;
+    observe() is called for every message. Neither raises: an error while reading
+    a message is caught and kept in errors, so collecting signals cannot fail a hop.
+    render() returns the "Context use" lines of a result entry; a field the SDK did
+    not report is written as "not reported", never as 0.
+    """
+
+    def __init__(self) -> None:
+        self.result = None                    # last message with a result attribute
+        self.precompact = None                # worker_registry.PreCompactCounter or None
+        self.errors: list[str] = []
+        self._seen_message_ids: set = set()
+        self.steps = 0                        # top-level steps counted
+        self.duplicate_steps = 0              # same message_id as an earlier step
+        self.subagent_steps = 0               # parent_tool_use_id set: skipped
+        self.steps_without_input = 0          # no usable usage.input_tokens
+        self.steps_missing_cache_key = 0
+        self.peak_tokens: Optional[int] = None
+        self.peak_model: Optional[str] = None
+        self.precompact_stream: list[str] = []          # HookEventMessage subtypes
+        self.unhandled_subtypes: dict[str, int] = {}
+        self.task_notifications = 0
+        self.task_notifications_without_usage = 0
+        self.subagent_tokens: Optional[int] = None
+        self.conversation_resets = 0
+
+    def attach_options(self, options) -> None:
+        try:
+            self.precompact = precompact_counter(options)
+        except Exception as exc:
+            self.errors.append(f"options: {type(exc).__name__}: {exc}")
+
+    def observe(self, message) -> None:
+        try:
+            self._observe(message)
+        except Exception as exc:
+            self.errors.append(f"{type(message).__name__}: {type(exc).__name__}: {exc}")
+
+    def _observe(self, message) -> None:
+        if hasattr(message, "result"):
+            self.result = message
+        if isinstance(message, AssistantMessage):
+            self._observe_step(message)
+        elif isinstance(message, ConversationResetMessage):
+            self.conversation_resets += 1
+        elif isinstance(message, HookEventMessage) and message.hook_event_name == "PreCompact":
+            self.precompact_stream.append(str(message.subtype))
+        elif isinstance(message, TaskNotificationMessage):
+            self.task_notifications += 1
+            usage = message.usage
+            tokens = usage.get("total_tokens") if usage is not None else None
+            if isinstance(tokens, int):
+                self.subagent_tokens = (self.subagent_tokens or 0) + tokens
+            else:
+                self.task_notifications_without_usage += 1
+        elif isinstance(message, SystemMessage) and message.subtype not in _HANDLED_SYSTEM_SUBTYPES:
+            key = str(message.subtype)
+            self.unhandled_subtypes[key] = self.unhandled_subtypes.get(key, 0) + 1
+
+    def _observe_step(self, message) -> None:
+        if message.parent_tool_use_id is not None:
+            self.subagent_steps += 1
+            return
+        message_id = message.message_id
+        if message_id is not None:
+            if message_id in self._seen_message_ids:
+                self.duplicate_steps += 1
+                return
+            self._seen_message_ids.add(message_id)
+        self.steps += 1
+        usage = message.usage
+        values = [usage.get(k) for k in _STEP_INPUT_KEYS] if isinstance(usage, dict) else [None]
+        if not isinstance(values[0], int):
+            self.steps_without_input += 1
+            return
+        if not all(isinstance(v, int) for v in values):
+            self.steps_missing_cache_key += 1
+        tokens = sum(v for v in values if isinstance(v, int))
+        if self.peak_tokens is None or tokens > self.peak_tokens:
+            self.peak_tokens = tokens
+            self.peak_model = message.model
+
+    # -- rendering ----------------------------------------------------------
+
+    def render(self) -> list[str]:
+        lines: list[str] = []
+        for part in (self._render_totals, self._render_peak, self._render_compaction,
+                     self._render_stream, self._render_subagents, self._render_guards):
+            try:
+                lines.extend(part())
+            except Exception as exc:
+                self.errors.append(f"{part.__name__}: {type(exc).__name__}: {exc}")
+        lines.append(
+            "- Signal-collection errors: "
+            + ("none" if not self.errors else "; ".join(self.errors))
+        )
+        return lines
+
+    def _model_usage(self) -> Optional[dict]:
+        model_usage = getattr(self.result, "model_usage", None)
+        return model_usage if isinstance(model_usage, dict) and model_usage else None
+
+    def _render_totals(self) -> list[str]:
+        if self.result is None:
+            return ["- Result totals: not reported (no result message)"]
+        r = self.result
+        lines = [
+            "- Result totals (last ResultMessage): "
+            f"total_cost_usd {_shown(getattr(r, 'total_cost_usd', None))}, "
+            f"num_turns {_shown(getattr(r, 'num_turns', None))}, "
+            f"subtype {_shown(getattr(r, 'subtype', None))}, "
+            f"terminal_reason {_shown(getattr(r, 'terminal_reason', None))}"
+        ]
+        model_usage = self._model_usage()
+        if model_usage is None:
+            lines.append("  - model_usage: not reported")
+            return lines
+        for model, usage in model_usage.items():
+            usage = usage if isinstance(usage, dict) else {}
+            parts = [usage.get(k) for k in _MODEL_INPUT_KEYS]
+            total = sum(parts) if all(isinstance(v, int) for v in parts) else None
+            lines.append(
+                f"  - {model}: input + cache-read + cache-creation tokens {_shown(total)} "
+                f"({' + '.join(_shown(v) for v in parts)}), "
+                f"output tokens {_shown(usage.get('outputTokens'))}, "
+                f"contextWindow {_shown(usage.get('contextWindow'))}"
+            )
+        return lines
+
+    def _render_peak(self) -> list[str]:
+        label = "- Peak context estimate (inferred, not a documented formula): "
+        counts = (
+            f"{self.steps} top-level step(s) counted (deduplicated by message_id), "
+            f"{self.duplicate_steps} duplicate(s) and {self.subagent_steps} subagent "
+            f"message(s) skipped"
+        )
+        if self.steps_without_input:
+            counts += f", {self.steps_without_input} step(s) without input tokens"
+        if self.steps_missing_cache_key:
+            counts += (
+                f", {self.steps_missing_cache_key} step(s) lacked a cache key "
+                "(only the keys present are summed)"
+            )
+        if self.peak_tokens is None:
+            return [label + f"not reported; {counts}"]
+        window = None
+        model_usage = self._model_usage()
+        if model_usage is not None:
+            entry = model_usage.get(self.peak_model)
+            if entry is None and len(model_usage) == 1:
+                entry = next(iter(model_usage.values()))
+            if isinstance(entry, dict):
+                window = entry.get("contextWindow")
+        if isinstance(window, (int, float)) and window > 0:
+            ratio = f"{self.peak_tokens} / {window} = {self.peak_tokens / window:.1%}"
+        else:
+            ratio = f"{self.peak_tokens} / contextWindow {_shown(window)}"
+        return [
+            label + f"{ratio} (largest input + cache tokens of one step, model "
+            f"{_shown(self.peak_model)}); {counts}"
+        ]
+
+    def _render_compaction(self) -> list[str]:
+        label = "- Compaction flag (PreCompact hook callback; not yet seen live): "
+        if self.precompact is None:
+            return [label + "not reported (no PreCompact callback registered)"]
+        count = self.precompact.count
+        triggers = ", ".join(self.precompact.triggers) if self.precompact.triggers else "none"
+        return [label + f"{'compacted' if count else 'not compacted'}, {count} event(s), triggers: {triggers}"]
+
+    def _render_stream(self) -> list[str]:
+        hooks = (
+            f"{len(self.precompact_stream)} ({', '.join(self.precompact_stream)})"
+            if self.precompact_stream else "none"
+        )
+        other = (
+            ", ".join(f"{k} x{v}" for k, v in self.unhandled_subtypes.items())
+            if self.unhandled_subtypes else "none"
+        )
+        return [
+            "- Stream side (include_hook_events=True; unverified live): "
+            f"PreCompact HookEventMessage: {hooks}; other SystemMessage subtypes: {other}"
+        ]
+
+    def _render_subagents(self) -> list[str]:
+        label = "- Subagent tokens (sum of TaskNotificationMessage.usage.total_tokens; unverified live): "
+        if self.task_notifications == 0:
+            return [label + "no TaskNotificationMessage arrived"]
+        skipped = self.task_notifications_without_usage
+        if self.subagent_tokens is None:
+            return [label + f"not reported ({self.task_notifications} notification(s), none with usage)"]
+        return [
+            label + f"{self.subagent_tokens} from {self.task_notifications} notification(s)"
+            + (f", {skipped} without usage skipped" if skipped else "")
+        ]
+
+    def _render_guards(self) -> list[str]:
+        subtype = getattr(self.result, "subtype", None) if self.result is not None else None
+        if subtype is None:
+            zeroed = "not reported (no result subtype)"
+        elif subtype == "error_during_execution":
+            zeroed = "usage may be zeroed (result subtype error_during_execution)"
+        else:
+            zeroed = f"no (result subtype {subtype})"
+        reset = (
+            f"arrived ({self.conversation_resets})" if self.conversation_resets else "did not arrive"
+        )
+        return [f"- Guards: zeroed usage: {zeroed}; ConversationResetMessage: {reset}"]
+
+
 async def _invoke_worker(
     worker_name: str,
     full_prompt: str,
     resume_session: Optional[str] = None,
+    signals: Optional[_ContextSignals] = None,
 ) -> tuple[str, Optional[str], Optional[str]]:
     """Stream worker output; return (raw_text, session_id, error_detail).
 
@@ -244,8 +482,12 @@ async def _invoke_worker(
     The real SDK raises ResultError after yielding an error ResultMessage; that
     exception is absorbed here. If no error detail was captured yet, it is built
     from the exception. Any other exception propagates.
+    signals: when given, every message is also passed to signals.observe() and
+    the options to signals.attach_options(); neither can raise.
     """
     options = build_options(worker_name, resume=resume_session)
+    if signals is not None:
+        signals.attach_options(options)
     result_text = ""
     session_id: Optional[str] = None
     result_session_id: Optional[str] = None
@@ -253,6 +495,8 @@ async def _invoke_worker(
 
     try:
         async for message in query(prompt=full_prompt, options=options):
+            if signals is not None:
+                signals.observe(message)
             # Capture session ID from init message for correction loop resumption
             subtype = getattr(message, "subtype", None)
             if subtype == "init":
@@ -280,17 +524,55 @@ _KIND_RESUME = "blocked-fetch resume prompt"
 _BACKTICK_RUN_RE = re.compile(r"`+")
 
 
+def _fenced(text: str, info: str = "text") -> str:
+    """text in a code fence longer than any backtick run inside it."""
+    longest = max((len(run) for run in _BACKTICK_RUN_RE.findall(text)), default=0)
+    fence = "`" * max(3, longest + 1)
+    return f"{fence}{info}\n{text}\n{fence}"
+
+
+def _as_json(value) -> str:
+    return json.dumps(value, indent=2, ensure_ascii=False, default=str)
+
+
+def _format_result_entry(result: WorkerResult, signals: Optional[_ContextSignals]) -> str:
+    """Body of a result entry: the returned fields, then the context-use lines."""
+    lines = [
+        "",
+        "Returned:",
+        "",
+        f"- status: {_shown(result.status)}",
+        f"- deliverable_path: {_shown(result.deliverable_path)}",
+        "- self_critique (verbatim):",
+        "",
+        _fenced(str(result.self_critique)),
+        "",
+        "- gaps:",
+        "",
+        _fenced(_as_json(result.gaps), "json"),
+    ]
+    if result.status == "blocked":
+        lines += ["", "- blocked_sources:", "", _fenced(_as_json(result.blocked_sources), "json")]
+    lines += ["", "Context use:", ""]
+    lines += signals.render() if signals is not None else [f"- {_NOT_REPORTED} (no signals collected)"]
+    return "\n".join(lines) + "\n"
+
+
 def _run_stamp() -> str:
     """Timestamp shared by the brief-record files of one run (YYYYMMDD-HHMMSS)."""
     return datetime.now().strftime("%Y%m%d-%H%M%S")
 
 
 class _BriefRecord:
-    """Markdown record of the prompts sent to one worker during one hop of one run.
+    """Markdown record of the prompts sent to one worker during one hop of one run,
+    and of what the worker returned for each.
 
-    Each record() call adds an entry (numbered heading with the prompt kind and a
+    Each record() call adds a prompt entry (numbered heading with the prompt kind and a
     YYYY-MM-DD HH:MM:SS timestamp, then the prompt verbatim in a code fence longer
-    than any backtick run inside it) and rewrites the whole file, so an entry whose
+    than any backtick run inside it). Each record_result() call adds a result entry
+    under "## Result N: <kind> — <timestamp>", N being the number of the prompt it
+    answers: the returned fields (self_critique verbatim) and the context-use
+    signals. Every call rewrites the whole file, so an entry whose
     write failed is included by the next successful write. The file name is chosen
     on the first write and never replaces an existing file: if the name is taken,
     _2, _3, ... is appended. A write failure never raises: it prints a warning and
@@ -303,6 +585,7 @@ class _BriefRecord:
         self._base = f"coordinator_hop_{hop_number}_{worker}_brief_{run_stamp}"
         self._header = f"# Brief record: hop {hop_number}, {worker} worker (run {run_stamp})\n"
         self._entries: list[str] = []
+        self._prompts = 0
         self._path: Optional[Path] = None
 
     @property
@@ -312,22 +595,35 @@ class _BriefRecord:
 
     def record(self, kind: str, text: str) -> None:
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        longest = max((len(run) for run in _BACKTICK_RUN_RE.findall(text)), default=0)
-        fence = "`" * max(3, longest + 1)
-        self._entries.append(
-            f"\n## {len(self._entries) + 1}. {kind} — {stamp}\n\n{fence}text\n{text}\n{fence}\n"
-        )
+        self._prompts += 1
+        self._entries.append(f"\n## {self._prompts}. {kind} — {stamp}\n\n{_fenced(text)}\n")
+        self._write_or_warn(kind)
+
+    def record_result(
+        self, kind: str, result: WorkerResult, signals: Optional[_ContextSignals] = None
+    ) -> None:
+        """Add the result entry for the latest prompt (of the given kind). Never raises
+        on a formatting or write error; a write error is handled as in record()."""
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        try:
+            body = _format_result_entry(result, signals)
+        except Exception as exc:
+            body = f"\nResult entry could not be formatted: {type(exc).__name__}: {exc}\n"
+        self._entries.append(f"\n## Result {self._prompts}: {kind} — {stamp}\n{body}")
+        self._write_or_warn(f"{kind} result")
+
+    def _write_or_warn(self, what: str) -> None:
         try:
             self._write()
         except OSError as exc:
             target = self._path or (self._directory / f"{self._base}.md")
             print(
                 f"\n[brief record] WARNING: could not write {target}: {exc}. "
-                f"The {kind} was NOT recorded; the hop continues."
+                f"The {what} was NOT recorded; the hop continues."
             )
             try:
                 _append_worker_updates_log(
-                    self._worker, f"brief record write failed ({target.name}, {kind}): {exc}"
+                    self._worker, f"brief record write failed ({target.name}, {what}): {exc}"
                 )
             except OSError as log_exc:
                 print(f"[brief record] WARNING: could not write the worker updates log: {log_exc}")
@@ -367,12 +663,15 @@ async def _run_single_hop(
     (used by _handle_validator_result for semantic correction retries and by
     the blocked-source resume).
     brief_record: when given, full_prompt is recorded under prompt_kind before
-    the worker is invoked.
+    the worker is invoked, and the worker's return plus its context-use signals
+    are recorded as a result entry once it has been parsed.
     """
+    signals: Optional[_ContextSignals] = None
     if brief_record is not None:
         brief_record.record(prompt_kind, full_prompt)
+        signals = _ContextSignals()
     raw_text, session_id, error_detail = await _invoke_worker(
-        routing.worker, full_prompt, resume_session
+        routing.worker, full_prompt, resume_session, signals=signals
     )
 
     # An SDK error result is malformed whatever its text says: the return block
@@ -404,6 +703,9 @@ async def _run_single_hop(
         raw_path = result.deliverable_path
         if isinstance(raw_path, str) and raw_path.strip() and not Path(raw_path).is_absolute():
             result.deliverable_path = str((WORKER_DIRS[routing.worker] / raw_path).resolve())
+
+    if brief_record is not None:
+        brief_record.record_result(prompt_kind, result, signals)
 
     if result.status == "blocked":
         return None, result

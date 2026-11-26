@@ -110,6 +110,41 @@ to a `--output` under `intermediate_outputs/<topic>/` too. If a record cannot be
 `logs/worker_updates.md`, and continues the hop; the next successful write of that hop's
 record includes the entry that failed.
 
+**Result entries.** After each worker invocation returns (routing, acceptance correction,
+semantic correction, blocked-fetch resume), the same file gets a result entry under
+`## Result N: <kind> — YYYY-MM-DD HH:MM:SS`, where `N` is the number of the prompt it answers.
+The file therefore reads prompt, result, prompt, result in send order. Prompt headings keep their
+`## N. <kind> — ...` form; result headings start with `Result`, so a parser that reads only
+prompt entries skips them. Validator invocations are still not recorded. A result entry has two
+parts:
+- **Returned**: `status`, `deliverable_path`, `self_critique` (verbatim, in a fence longer than any
+  backtick run in it), `gaps` (JSON), and `blocked_sources` (JSON) when the status is `blocked`.
+  A malformed return, or an SDK error result, is recorded as status `malformed` with its gap line.
+- **Context use**, read from that invocation's message stream. A field the SDK did not report is
+  written as "not reported", never as 0:
+  1. *Result totals* from the last `ResultMessage`: `total_cost_usd`, `num_turns`, `subtype`,
+     `terminal_reason`, and per model in `model_usage` the input + cache-read + cache-creation
+     tokens, the output tokens and `contextWindow`.
+  2. *Peak context estimate*: the largest input + cache tokens of one top-level step
+     (`AssistantMessage`s deduplicated by `message_id`, with those that have `parent_tool_use_id`
+     set skipped), divided by that model's `contextWindow`. Labelled "inferred, not a documented
+     formula".
+  3. *Compaction flag*: the count and triggers seen by a `PreCompact` hook callback that
+     `build_options` registers (`worker_registry.PreCompactCounter`). The callback only counts and
+     returns `{}`, which is no decision. Labelled "not yet seen live".
+  4. *Stream side*: `build_options` sets `include_hook_events=True`. The entry lists any
+     `HookEventMessage` for `PreCompact` and every `SystemMessage` subtype the coordinator does not
+     handle itself (raw subtype string, with a count). Labelled "unverified live".
+  5. *Subagent tokens*: the sum of `TaskNotificationMessage.usage.total_tokens`, skipping `None`.
+     Labelled "unverified live".
+  6. *Guards*: "usage may be zeroed" when the result subtype is `error_during_execution`, and
+     whether a `ConversationResetMessage` arrived.
+
+  Collecting signals never fails a hop. An error while reading a message is caught and listed under
+  "Signal-collection errors" in the entry. A result entry that cannot be written is handled like a
+  prompt entry: a warning, a `worker_updates.md` line, and the hop continues. Source of the signals:
+  `output/intermediate_outputs/coordinator-dev/sdk_usage_compaction_report.md`.
+
 Final deliverables should be directed to `output/final_outputs/<topic>/` via `--output`. These
 are also gitignored (local-only) but are the permanent output for the user.
 
@@ -159,14 +194,14 @@ A worker that cannot fetch a required source ends its run with `"status": "block
 - A replacement URL is registered under `<source>_replacement` in `other_sources.json`.
 - The same worker session is resumed with your answers, then the normal acceptance and Validator path runs.
 - At most 2 block-resume cycles per hop (shared with the correction retry). A third block, a missing session ID, or a block during a Validator correction retry stops the hop and prints the manual-mode fallback.
-- Tests: `coordinator/tests/` (270 passed, 2 skipped on 2026-11-20; stubbed `query` plus SDK contract tests, no network). The 2 skips are live SDK smoke tests, enabled with `COORDINATOR_LIVE_SDK=1` (one real call each); both passed in one owner run on 2026-11-20. Run from the repo root: `uv run --with claude-agent-sdk --with pytest python -m pytest coordinator/tests`. Live: three single-hop Developer runs on 2026-11-12 and one single-hop Scout run on 2026-11-13; the blocked-fetch resume has not run live.
+- Tests: `coordinator/tests/` (270 passed, 2 skipped on 2026-11-20, before `test_hop_result.py` was added; stubbed `query` plus SDK contract tests, no network). The 2 skips are live SDK smoke tests, enabled with `COORDINATOR_LIVE_SDK=1` (one real call each); both passed in one owner run on 2026-11-20. Run from the repo root: `uv run --with claude-agent-sdk --with pytest python -m pytest coordinator/tests`. Live: three single-hop Developer runs on 2026-11-12 and one single-hop Scout run on 2026-11-13; the blocked-fetch resume has not run live.
 
 ## Module structure
 
 | File | Responsibility |
 |---|---|
-| `orchestrator.py` | `run(task)` async — main loop, multi-hop sequencing, logging, brief record (`_BriefRecord`) |
-| `worker_registry.py` | Per-worker `ClaudeAgentOptions`; MCP paths resolved from `__file__` |
+| `orchestrator.py` | `run(task)` async — main loop, multi-hop sequencing, logging, brief record (`_BriefRecord`) with result entries and context-use signals (`_ContextSignals`) |
+| `worker_registry.py` | Per-worker `ClaudeAgentOptions` (incl. the counting-only `PreCompact` hook and `include_hook_events`); MCP paths resolved from `__file__` |
 | `acceptance.py` | `parse_worker_result()`, `acceptance_check()` |
 | `schemas.py` | `RoutingPrompt`, `WorkerResult` (incl. `blocked_sources`), `AcceptanceResult` dataclasses |
 | `__main__.py` | Thin CLI wrapper (`python -m coordinator`) |
