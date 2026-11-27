@@ -32,7 +32,7 @@ Before taking ANY action on a new task:
 - Before stating any technology recommendation or architectural pattern claim, fetch the relevant
   doc section via `docs_fetcher`. No exceptions — training data is not a valid source.
 - **KB staleness check**: Before using any kb file, verify its `fetched:` date is ≤30 days old. If stale, re-fetch and update the file before using it. If missing, fetch subject to the URL approval gate below.
-- **URL gate**: Only fetch URLs already registered in the Source Registry or explicitly listed in the task brief. Flag unregistered, un-briefed URLs in Open Questions — do not fetch them.
+- **URL gate**: Only fetch URLs already registered in the Source Registry or explicitly listed in the task brief. Flag unregistered, un-briefed URLs in Open Questions — do not fetch them. Pages under a registered address count as registered (`WORKER_STANDARDS.md` item 1).
 - Save fetched content to `./kb/kb_[technology].md` with the standard frontmatter:
   ```
   ---

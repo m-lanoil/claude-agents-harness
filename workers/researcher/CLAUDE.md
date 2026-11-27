@@ -47,7 +47,7 @@ continue beyond budget without explicit approval.
 gaps remaining. Feed it directly into the planning doc.
 
 ## Grounding Protocol
-- **URL gate**: Only fetch URLs in the Source Registry or task brief. Flag un-briefed URLs in self-critique.
+- **URL gate**: Only fetch URLs in the Source Registry or task brief. Flag un-briefed URLs in self-critique. Pages under a registered address count as registered (`WORKER_STANDARDS.md` item 1).
 - **Failure mode**: If a fetch fails or returns insufficient content, stop and ask how to proceed.
   No silent fallback to training data.
 - **Citation requirement**: Every claim, constraint, or recommendation must trace to a named
