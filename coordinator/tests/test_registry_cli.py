@@ -222,6 +222,172 @@ def test_preregister_entries_not_an_object_warns_instead_of_crashing(reg):
     assert list(reg.iterdir()) == []
 
 
+def test_preregister_url_in_another_file_is_not_duplicated(reg, capsys):
+    url = "https://docs.pytest.org/en/stable/how-to/skipping.html"
+    (reg / "libraries.json").write_text(json.dumps({"pytest_skipping": url}), encoding="utf-8")
+    before = (reg / "libraries.json").read_text(encoding="utf-8")
+    orchestrator._preregister_urls(json.dumps({"other": {"pytest_skip": url}}))
+    assert not (reg / "other_sources.json").exists()
+    assert (reg / "libraries.json").read_text(encoding="utf-8") == before
+    out = capsys.readouterr().out
+    assert f"Skipped other 'pytest_skip': {url} is already registered in libraries.json as 'pytest_skipping'." in out
+    assert "Registered" not in out
+
+
+def test_preregister_url_in_target_file_under_another_name_is_not_duplicated(reg, capsys):
+    (reg / "libraries.json").write_text(json.dumps({"old_name": "https://u"}), encoding="utf-8")
+    orchestrator._preregister_urls(json.dumps({"libraries": {"new_name": "https://u"}}))
+    assert _read(reg, "libraries.json") == {"old_name": "https://u"}
+    out = capsys.readouterr().out
+    assert "already registered in libraries.json as 'old_name'" in out
+    assert "all already present" not in out
+
+
+def test_preregister_name_with_different_url_keeps_old_and_warns(reg, capsys):
+    (reg / "libraries.json").write_text(json.dumps({"wandb": "https://docs.wandb.ai/"}), encoding="utf-8")
+    orchestrator._preregister_urls(json.dumps({"libraries": {"wandb": "https://docs.wandb.ai/guides"}}))
+    assert _read(reg, "libraries.json") == {"wandb": "https://docs.wandb.ai/"}
+    out = capsys.readouterr().out
+    assert "WARNING" in out
+    assert "kept https://docs.wandb.ai/, did not register https://docs.wandb.ai/guides" in out
+    assert "all already present" not in out
+
+
+def test_preregister_name_and_url_both_present_is_skipped_quietly(reg, capsys):
+    (reg / "clis.json").write_text(json.dumps({"git": "https://git-scm.com/docs"}), encoding="utf-8")
+    before = (reg / "clis.json").read_text(encoding="utf-8")
+    orchestrator._preregister_urls(json.dumps({"clis": {"git": "https://git-scm.com/docs"}}))
+    assert (reg / "clis.json").read_text(encoding="utf-8") == before
+    out = capsys.readouterr().out
+    assert "No new clis URLs to register (all already present)." in out
+    assert "WARNING" not in out and "Skipped" not in out
+
+
+def test_preregister_same_url_twice_in_one_payload_is_written_once(reg, capsys):
+    payload = {"libraries": {"a": "https://same"}, "other": {"b": "https://same"}}
+    orchestrator._preregister_urls(json.dumps(payload))
+    assert _read(reg, "libraries.json") == {"a": "https://same"}
+    assert not (reg / "other_sources.json").exists()
+    assert "already registered in libraries.json as 'a'" in capsys.readouterr().out
+
+
+def test_preregister_url_match_is_exact_string(reg):
+    (reg / "libraries.json").write_text(json.dumps({"x": "https://a.example/"}), encoding="utf-8")
+    orchestrator._preregister_urls(json.dumps({"other": {"y": "https://a.example"}}))
+    assert _read(reg, "other_sources.json") == {"y": "https://a.example"}
+
+
+def test_preregister_mixed_payload_writes_only_new_entries(reg, capsys):
+    (reg / "other_sources.json").write_text(json.dumps({"held": "https://dup"}), encoding="utf-8")
+    orchestrator._preregister_urls(json.dumps({"other": {"copy": "https://dup", "fresh": "https://new"}}))
+    assert _read(reg, "other_sources.json") == {"held": "https://dup", "fresh": "https://new"}
+    assert "Registered 1 other URL(s): ['fresh']" in capsys.readouterr().out
+
+
+def test_preregister_returns_empty_when_nothing_is_processed(reg):
+    assert orchestrator._preregister_urls(None) == {}
+    assert orchestrator._preregister_urls("") == {}
+    assert orchestrator._preregister_urls("{not json") == {}
+    assert orchestrator._preregister_urls("[1, 2]") == {}
+    assert orchestrator._preregister_urls(json.dumps({"misc": {"a": "https://a"}})) == {}
+    assert orchestrator._preregister_urls(json.dumps({"libraries": ["https://a"], "clis": {}})) == {}
+
+
+def test_preregister_returns_target_file_and_name_for_new_entries(reg):
+    payload = {"libraries": {"lib": "https://l.example"}, "other": {"spec": "https://o.example"}}
+    assert orchestrator._preregister_urls(json.dumps(payload)) == {
+        "libraries": {"lib": ("libraries.json", "lib")},
+        "other": {"spec": ("other_sources.json", "spec")},
+    }
+
+
+def test_preregister_returns_existing_entry_when_name_and_url_present(reg):
+    (reg / "clis.json").write_text(json.dumps({"git": "https://git-scm.com/docs"}), encoding="utf-8")
+    result = orchestrator._preregister_urls(json.dumps({"clis": {"git": "https://git-scm.com/docs"}}))
+    assert result == {"clis": {"git": ("clis.json", "git")}}
+
+
+def test_preregister_returns_holder_when_url_is_registered_under_another_name(reg):
+    url = "https://docs.pytest.org/en/stable/how-to/skipping.html"
+    (reg / "libraries.json").write_text(json.dumps({"pytest_skipping": url}), encoding="utf-8")
+    result = orchestrator._preregister_urls(json.dumps({"other": {"pytest_skip": url}}))
+    assert result == {"other": {"pytest_skip": ("libraries.json", "pytest_skipping")}}
+
+
+def test_preregister_returns_none_when_name_is_held_by_a_different_url(reg):
+    (reg / "libraries.json").write_text(json.dumps({"wandb": "https://docs.wandb.ai/"}), encoding="utf-8")
+    result = orchestrator._preregister_urls(json.dumps({"libraries": {"wandb": "https://docs.wandb.ai/guides"}}))
+    assert result == {"libraries": {"wandb": None}}
+
+
+def test_preregister_returns_first_name_for_same_url_twice_in_one_payload(reg):
+    payload = {"libraries": {"a": "https://same"}, "other": {"b": "https://same"}}
+    assert orchestrator._preregister_urls(json.dumps(payload)) == {
+        "libraries": {"a": ("libraries.json", "a")},
+        "other": {"b": ("libraries.json", "a")},
+    }
+
+
+def test_preregister_returns_one_outcome_per_name_in_mixed_payload(reg):
+    (reg / "other_sources.json").write_text(
+        json.dumps({"held": "https://dup", "taken": "https://old"}), encoding="utf-8"
+    )
+    payload = {"other": {"copy": "https://dup", "fresh": "https://new", "taken": "https://other"}}
+    assert orchestrator._preregister_urls(json.dumps(payload)) == {
+        "other": {
+            "copy": ("other_sources.json", "held"),
+            "fresh": ("other_sources.json", "fresh"),
+            "taken": None,
+        }
+    }
+
+
+UNREADABLE = ["", "{not json", "[]"]  # empty file, invalid JSON, a JSON array
+
+
+@pytest.mark.parametrize("content", UNREADABLE)
+def test_preregister_unreadable_non_target_file_warns_and_other_entries_are_handled(reg, capsys, content):
+    (reg / "clis.json").write_text(content, encoding="utf-8")
+    result = orchestrator._preregister_urls(json.dumps({"libraries": {"lib": "https://l.example"}}))
+    assert result == {"libraries": {"lib": ("libraries.json", "lib")}}
+    assert _read(reg, "libraries.json") == {"lib": "https://l.example"}
+    assert (reg / "clis.json").read_text(encoding="utf-8") == content  # never written
+    out = capsys.readouterr().out
+    assert "WARNING" in out and "clis.json" in out
+
+
+@pytest.mark.parametrize("content", UNREADABLE)
+def test_preregister_unreadable_target_file_is_not_written(reg, capsys, content):
+    (reg / "other_sources.json").write_text(content, encoding="utf-8")
+    payload = {"other": {"spec": "https://o.example"}, "libraries": {"lib": "https://l.example"}}
+    result = orchestrator._preregister_urls(json.dumps(payload))
+    assert result == {
+        "libraries": {"lib": ("libraries.json", "lib")},
+        "other": {"spec": None},
+    }
+    assert (reg / "other_sources.json").read_text(encoding="utf-8") == content  # never written
+    assert _read(reg, "libraries.json") == {"lib": "https://l.example"}
+    out = capsys.readouterr().out
+    assert "other_sources.json" in out and "WARNING" in out
+    assert "did not register other URL(s): ['spec']" in out
+    assert "Registered 1 other" not in out
+
+
+def test_preregister_unreadable_target_reports_holder_in_a_readable_file(reg):
+    (reg / "other_sources.json").write_text("", encoding="utf-8")
+    (reg / "libraries.json").write_text(json.dumps({"held": "https://dup"}), encoding="utf-8")
+    result = orchestrator._preregister_urls(json.dumps({"other": {"copy": "https://dup"}}))
+    assert result == {"other": {"copy": ("libraries.json", "held")}}
+    assert (reg / "other_sources.json").read_text(encoding="utf-8") == ""
+
+
+def test_preregister_unreadable_file_warns_once_per_call(reg, capsys):
+    (reg / "clis.json").write_text("[]", encoding="utf-8")
+    payload = {"libraries": {"a": "https://a"}, "other": {"b": "https://b"}}
+    orchestrator._preregister_urls(json.dumps(payload))
+    assert capsys.readouterr().out.count("clis.json does not hold a JSON object") == 1
+
+
 # ---------------------------------------------------------------------------
 # __main__ flags
 # ---------------------------------------------------------------------------

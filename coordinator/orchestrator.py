@@ -60,29 +60,86 @@ _VALIDATOR_CONFIDENCE_THRESHOLD = 0.7
 # URL pre-registration
 # ---------------------------------------------------------------------------
 
-def _preregister_urls(approved_urls_json: str | None) -> None:
+def _find_registered_url(registries: dict[str, dict], url) -> tuple[str, str] | None:
+    """Return (registry key, name) of the first entry whose URL equals *url* exactly."""
+    for key in _REGISTRY_FILES:
+        for name, value in registries[key].items():
+            if value == url:
+                return key, name
+    return None
+
+
+def _load_registry_file(path: Path) -> dict | None:
+    """Return the JSON object in *path*, {} if it does not exist, or None if unreadable.
+
+    Unreadable means it could not be read or parsed, or its content is not a JSON
+    object; a WARNING naming the file is printed in that case.
+    """
+    if not path.exists():
+        return {}
+    try:
+        with path.open("r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError) as exc:
+        print(
+            f"[preregister_urls] WARNING: could not read {path.name} ({exc}); "
+            "treating it as empty and not writing to it."
+        )
+        return None
+    if not isinstance(data, dict):
+        print(
+            f"[preregister_urls] WARNING: {path.name} does not hold a JSON object; "
+            "treating it as empty and not writing to it."
+        )
+        return None
+    return data
+
+
+def _preregister_urls(
+    approved_urls_json: str | None,
+) -> dict[str, dict[str, tuple[str, str] | None]]:
     """Merge approved URLs into the Source Registry JSON files before worker invocation.
 
     Parses *approved_urls_json* as a JSON object with optional keys "libraries",
-    "clis", and "other" (each mapping name → url). For each key, loads the
-    corresponding registry file in servers/docs_fetcher/, merges new entries
-    (skipping any name already present), and writes back. Creates the file as an
-    empty object if it does not exist.
+    "clis", and "other" (each mapping name → url). Each entry is checked against
+    all three registry files in servers/docs_fetcher/ (URLs compared as exact
+    strings):
+
+    - name and URL already in the target file: skipped silently.
+    - URL already in any registry file under any name: not written; the file and
+      name holding it are printed.
+    - name already in the target file with a different URL: the existing entry is
+      kept and a WARNING naming both URLs is printed.
+    - otherwise: added to the target file, which is created if it does not exist.
+
+    A registry file that cannot be read or parsed, or does not hold a JSON object,
+    gets a WARNING naming it, counts as {} for the duplicate check, and is never
+    written. Entries whose target file is unreadable are not registered (unless
+    their URL is already held by a readable file, which is then reported as above).
 
     Idempotent: re-running with the same JSON produces no changes and no errors.
     Returns immediately if *approved_urls_json* is None or empty.
+
+    Returns, for each payload key that was processed and each name under it,
+    where that URL now sits in the registry: (registry filename, registered
+    name), or None when it was not registered because the name is already held
+    by a different URL or the target file is unreadable. Returns {} when nothing
+    was processed.
     """
+    placements: dict[str, dict[str, tuple[str, str] | None]] = {}
     if not approved_urls_json:
-        return
+        return placements
     try:
         approved = json.loads(approved_urls_json)
     except json.JSONDecodeError as exc:
         print(f"[preregister_urls] WARNING: could not parse --approved-urls JSON: {exc}")
-        return
+        return placements
     if not isinstance(approved, dict):
         print("[preregister_urls] WARNING: --approved-urls JSON must be an object; nothing registered.")
-        return
+        return placements
 
+    registries: dict[str, dict] | None = None
+    unreadable: set[str] = set()
     for key, filename in _REGISTRY_FILES.items():
         entries = approved.get(key)
         if not entries:
@@ -93,25 +150,77 @@ def _preregister_urls(approved_urls_json: str | None) -> None:
                 "name to URL; skipped."
             )
             continue
+        if registries is None:
+            registries = {}
+            for reg_key, reg_filename in _REGISTRY_FILES.items():
+                loaded = _load_registry_file(_DOCS_FETCHER_DIR / reg_filename)
+                if loaded is None:
+                    unreadable.add(reg_key)
+                    loaded = {}
+                registries[reg_key] = loaded
         registry_path = _DOCS_FETCHER_DIR / filename
-        if registry_path.exists():
-            with registry_path.open("r", encoding="utf-8") as fh:
-                existing: dict = json.load(fh)
-        else:
-            existing = {}
-        new_entries = {k: v for k, v in entries.items() if k not in existing}
+        existing: dict = registries[key]
+        new_entries: dict = {}
+        placed = placements.setdefault(key, {})
+        if key in unreadable:
+            not_written: list = []
+            for name, url in entries.items():
+                holder = _find_registered_url(registries, url)
+                if holder is not None:
+                    held_key, held_name = holder
+                    placed[name] = (_REGISTRY_FILES[held_key], held_name)
+                    print(
+                        f"[preregister_urls] Skipped {key} '{name}': {url} is already "
+                        f"registered in {_REGISTRY_FILES[held_key]} as '{held_name}'."
+                    )
+                else:
+                    placed[name] = None
+                    not_written.append(name)
+            if not_written:
+                print(
+                    f"[preregister_urls] WARNING: {filename} is unreadable; did not "
+                    f"register {key} URL(s): {not_written}"
+                )
+            continue
+        all_present = True
+        for name, url in entries.items():
+            if name in existing and existing[name] == url:
+                placed[name] = (filename, name)
+                continue
+            all_present = False
+            holder = _find_registered_url(registries, url)
+            if holder is not None:
+                held_key, held_name = holder
+                placed[name] = (_REGISTRY_FILES[held_key], held_name)
+                print(
+                    f"[preregister_urls] Skipped {key} '{name}': {url} is already "
+                    f"registered in {_REGISTRY_FILES[held_key]} as '{held_name}'."
+                )
+            elif name in existing:
+                placed[name] = None
+                print(
+                    f"[preregister_urls] WARNING: {key} '{name}' is already registered "
+                    f"in {filename} with a different URL; kept {existing[name]}, "
+                    f"did not register {url}."
+                )
+            else:
+                existing[name] = url
+                new_entries[name] = url
+                placed[name] = (filename, name)
         if new_entries:
-            existing.update(new_entries)
             with registry_path.open("w", encoding="utf-8") as fh:
                 json.dump(existing, fh, indent=2)
             print(
                 f"[preregister_urls] Registered {len(new_entries)} {key} URL(s): "
                 f"{list(new_entries)}"
             )
-        else:
+        elif all_present:
             print(
                 f"[preregister_urls] No new {key} URLs to register (all already present)."
             )
+        else:
+            print(f"[preregister_urls] No new {key} URLs to register.")
+    return placements
 
 
 # ---------------------------------------------------------------------------
@@ -784,6 +893,7 @@ def _collect_block_answers(result: WorkerResult) -> Optional[list[dict]]:
     """
     _present_blocked_sources(result)
     answers: list[dict] = []
+    used_names: set[str] = set()
     for i, entry in enumerate(result.blocked_sources, start=1):
         source = str(entry.get("source"))
         candidates = [str(c) for c in (entry.get("candidates") or [])]
@@ -815,7 +925,13 @@ def _collect_block_answers(result: WorkerResult) -> Optional[list[dict]]:
                     continue
                 # Fresh registry name: the old key already exists and _preregister_urls
                 # skips names that are present, so reusing it would register nothing.
-                name = f"{_slug(source) or 'source'}_replacement"
+                # Sources that slug the same get _2, _3, ... so each URL keeps its own name.
+                base = f"{_slug(source) or 'source'}_replacement"
+                name, n = base, 1
+                while name in used_names:
+                    n += 1
+                    name = f"{base}_{n}"
+                used_names.add(name)
                 answers.append({"source": source, "kind": "url", "url": raw, "name": name})
                 break
             print("  Enter 1, 2, 3 or 4.")
@@ -826,7 +942,10 @@ def _apply_block_answers(worker_name: str, answers: list[dict]) -> list[str]:
     """Perform the side effects of the answers; return one resume-prompt line each."""
     worker_dir = WORKER_DIRS[worker_name]
     lines: list[str] = []
-    urls_by_name: dict[str, str] = {}
+    urls_by_name = {ans["name"]: ans["url"] for ans in answers if ans["kind"] == "url"}
+    placed: dict[str, tuple[str, str] | None] = {}
+    if urls_by_name:
+        placed = _preregister_urls(json.dumps({"other": urls_by_name})).get("other", {})
     for ans in answers:
         source = ans["source"]
         if ans["kind"] == "file":
@@ -838,18 +957,25 @@ def _apply_block_answers(worker_name: str, answers: list[dict]) -> list[str]:
                 "directory). Apply the Human-Retrieved Source Protocol."
             )
         elif ans["kind"] == "url":
-            urls_by_name[ans["name"]] = ans["url"]
-            lines.append(
-                f"- {source}: the owner approved this replacement URL, now registered "
-                f"as '{ans['name']}' in the Source Registry: {ans['url']}. Fetch it."
-            )
+            where = placed.get(ans["name"])
+            if where is None:
+                lines.append(
+                    f"- {source}: the owner approved this replacement URL for this task: "
+                    f"{ans['url']}. It is not in the Source Registry because the name "
+                    f"'{ans['name']}' is already registered with a different URL, or the "
+                    "registry file could not be read. Fetch it."
+                )
+            else:
+                reg_file, reg_name = where
+                lines.append(
+                    f"- {source}: the owner approved this replacement URL, registered "
+                    f"in {reg_file} as '{reg_name}': {ans['url']}. Fetch it."
+                )
         else:
             lines.append(
                 f"- {source}: the owner chose to continue without this source. "
                 "Proceed and disclose the missing source in the deliverable and self-critique."
             )
-    if urls_by_name:
-        _preregister_urls(json.dumps({"other": urls_by_name}))
     return lines
 
 
@@ -1344,6 +1470,53 @@ async def _execute_chain(
     return True
 
 
+def _registry_notes(
+    approved_urls_json: str | None,
+    placements: dict[str, dict[str, tuple[str, str] | None]] | None,
+) -> list[str]:
+    """One note line per approved entry whose placement differs from the request.
+
+    Differs means a different name, a different file from the requested key's
+    file, or None (not registered). Entries with no placement (their key was not
+    processed) get no line. A None *placements* counts as {}.
+    """
+    placements = placements or {}
+    if not placements:
+        return []
+    try:
+        approved = json.loads(approved_urls_json or "")
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(approved, dict):
+        return []
+    notes: list[str] = []
+    for key, filename in _REGISTRY_FILES.items():
+        entries = approved.get(key)
+        placed = placements.get(key) or {}
+        if not isinstance(entries, dict):
+            continue
+        for name, url in entries.items():
+            if name not in placed:
+                continue
+            where = placed[name]
+            if where == (filename, name):
+                continue
+            if where is None:
+                notes.append(
+                    f"- {key} '{name}' ({url}): not in the Source Registry (the name is "
+                    "already registered with a different URL, or the registry file could "
+                    "not be read), but the owner approved this URL for this task. Fetch "
+                    "it by URL."
+                )
+            else:
+                reg_file, reg_name = where
+                notes.append(
+                    f"- {key} '{name}' ({url}): already registered in {reg_file} as "
+                    f"'{reg_name}'; use that name."
+                )
+    return notes
+
+
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
@@ -1415,7 +1588,11 @@ async def run(
     required_sections = [s.strip() for s in sections_raw.split(",") if s.strip()]
 
     # Pre-register approved URLs into the Source Registry before worker invocation
-    _preregister_urls(approved_urls)
+    placements = _preregister_urls(approved_urls)
+    notes = _registry_notes(approved_urls, placements)
+    if notes:
+        print("Source Registry notes:\n" + "\n".join(notes))
+        task = f"{task}\n\n## Source Registry notes\n" + "\n".join(notes)
 
     # Steps 3-6: Human checkpoint + invoke + accept for each hop
     success = await _execute_chain(
