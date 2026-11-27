@@ -245,6 +245,127 @@ def test_answer_replacement_url_is_registered(env):
     assert check.passed
 
 
+def test_resume_prompt_names_new_replacement_entry(env):
+    env.responses = [("s1", _blocked(SRC_A)), ("s1", env.complete())]
+    env.inputs = ["2", "https://example.org/replacement"]
+    _run_hop(env)
+    prompt = env.calls[1]["prompt"]
+    assert (
+        "registered in other_sources.json as 'uptime_institute_2026_survey_replacement': "
+        "https://example.org/replacement" in prompt
+    )
+    assert "not in the Source Registry" not in prompt
+
+
+def test_resume_prompt_names_existing_entry_when_url_already_registered(env):
+    registry_path = env.fetcher_dir / "other_sources.json"
+    registry_path.write_text(json.dumps({"held": "https://example.org/replacement"}), encoding="utf-8")
+    before = registry_path.read_text(encoding="utf-8")
+    env.responses = [("s1", _blocked(SRC_A)), ("s1", env.complete())]
+    env.inputs = ["2", "https://example.org/replacement"]
+    check, _ = _run_hop(env)
+
+    assert registry_path.read_text(encoding="utf-8") == before
+    prompt = env.calls[1]["prompt"]
+    assert "registered in other_sources.json as 'held': https://example.org/replacement" in prompt
+    assert "uptime_institute_2026_survey_replacement" not in prompt
+    assert check.passed
+
+
+def test_resume_prompt_says_not_registered_when_replacement_name_is_taken(env):
+    registry_path = env.fetcher_dir / "other_sources.json"
+    registry_path.write_text(
+        json.dumps({"uptime_institute_2026_survey_replacement": "https://old"}), encoding="utf-8"
+    )
+    before = registry_path.read_text(encoding="utf-8")
+    env.responses = [("s1", _blocked(SRC_A)), ("s1", env.complete())]
+    env.inputs = ["2", "https://new"]
+    check, _ = _run_hop(env)
+
+    assert registry_path.read_text(encoding="utf-8") == before
+    prompt = env.calls[1]["prompt"]
+    assert "the owner approved this replacement URL for this task: https://new" in prompt
+    assert "not in the Source Registry" in prompt
+    assert "already registered with a different URL" in prompt
+    assert "registered in other_sources.json as" not in prompt
+    assert check.passed
+
+
+def _resume_line(prompt: str, source: str) -> str:
+    return next(line for line in prompt.splitlines() if line.startswith(f"- {source}:"))
+
+
+def test_sources_with_the_same_slug_get_distinct_replacement_names(env):
+    src_1 = {"source": "Uptime Survey", "reason": "paywall"}
+    src_2 = {"source": "uptime-survey", "reason": "dead link"}
+    env.responses = [("s1", _blocked(src_1, src_2)), ("s1", env.complete())]
+    env.inputs = ["2", "https://example.org/one", "2", "https://example.org/two"]
+    check, _ = _run_hop(env)
+
+    registry = json.loads((env.fetcher_dir / "other_sources.json").read_text(encoding="utf-8"))
+    assert registry == {
+        "uptime_survey_replacement": "https://example.org/one",
+        "uptime_survey_replacement_2": "https://example.org/two",
+    }
+    prompt = env.calls[1]["prompt"]
+    assert _resume_line(prompt, "Uptime Survey").endswith(
+        "registered in other_sources.json as 'uptime_survey_replacement': https://example.org/one. Fetch it."
+    )
+    assert _resume_line(prompt, "uptime-survey").endswith(
+        "registered in other_sources.json as 'uptime_survey_replacement_2': https://example.org/two. Fetch it."
+    )
+    assert check.passed
+
+
+def test_sources_with_empty_slugs_get_distinct_replacement_names(env):
+    # Neither title has a letter or digit, so both slug to "" and fall back to "source".
+    src_1 = {"source": "★★", "reason": "paywall"}
+    src_2 = {"source": "☆☆", "reason": "paywall"}
+    src_3 = {"source": "§", "reason": "paywall"}
+    env.responses = [("s1", _blocked(src_1, src_2, src_3)), ("s1", env.complete())]
+    env.inputs = ["2", "https://u1.example", "2", "https://u2.example", "2", "https://u3.example"]
+    _run_hop(env)
+
+    registry = json.loads((env.fetcher_dir / "other_sources.json").read_text(encoding="utf-8"))
+    assert registry == {
+        "source_replacement": "https://u1.example",
+        "source_replacement_2": "https://u2.example",
+        "source_replacement_3": "https://u3.example",
+    }
+    prompt = env.calls[1]["prompt"]
+    assert "as 'source_replacement': https://u1.example" in _resume_line(prompt, "★★")
+    assert "as 'source_replacement_2': https://u2.example" in _resume_line(prompt, "☆☆")
+    assert "as 'source_replacement_3': https://u3.example" in _resume_line(prompt, "§")
+
+
+def test_unreadable_target_registry_during_resume_does_not_crash(env, capsys):
+    registry_path = env.fetcher_dir / "other_sources.json"
+    registry_path.write_text("", encoding="utf-8")  # 0-byte file
+    env.responses = [("s1", _blocked(SRC_A)), ("s1", env.complete())]
+    env.inputs = ["2", "https://example.org/replacement"]
+    check, _ = _run_hop(env)
+
+    assert registry_path.read_text(encoding="utf-8") == ""  # never written
+    prompt = env.calls[1]["prompt"]
+    assert "the owner approved this replacement URL for this task: https://example.org/replacement" in prompt
+    assert "registry file could not be read" in prompt
+    assert "WARNING" in capsys.readouterr().out
+    assert check.passed
+
+
+def test_unreadable_non_target_registry_during_resume_still_registers(env, capsys):
+    (env.fetcher_dir / "clis.json").write_text("[]", encoding="utf-8")
+    env.responses = [("s1", _blocked(SRC_A)), ("s1", env.complete())]
+    env.inputs = ["2", "https://example.org/replacement"]
+    check, _ = _run_hop(env)
+
+    registry = json.loads((env.fetcher_dir / "other_sources.json").read_text(encoding="utf-8"))
+    assert registry == {"uptime_institute_2026_survey_replacement": "https://example.org/replacement"}
+    assert (env.fetcher_dir / "clis.json").read_text(encoding="utf-8") == "[]"
+    assert "clis.json" in capsys.readouterr().out
+    assert check.passed
+
+
 def test_answer_replacement_url_by_candidate_number(env):
     env.responses = [("s1", _blocked(SRC_A)), ("s1", env.complete())]
     env.inputs = ["2", "2"]

@@ -57,7 +57,7 @@ Applies to any task requiring code or embedded shell command strings.
 6. **Keep the markdown**: Do not delete kb files. Date them per the `fetched:` and `refreshed:` rule in `../../workers/WORKER_STANDARDS.md` (KB frontmatter format).
 
 ### Library URL discovery
-1. Fetch only URLs in the Source Registry or explicitly listed in the task brief.
+1. Fetch only URLs in the Source Registry or explicitly listed in the task brief. Pages under a registered address count as registered (`WORKER_STANDARDS.md` item 1).
 2. Register in the correct store after task completion.
 3. **Stale server warning**: If `server.py` was edited this session, the running process may be stale. Verify server restarted before calling `add_library`. If unsure, edit the JSON directly (see WORKER_STANDARDS.md — Source Registry Protocol).
 

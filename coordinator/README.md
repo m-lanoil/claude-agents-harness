@@ -51,9 +51,37 @@ Each key maps to the corresponding registry file in `servers/docs_fetcher/`:
 | `clis` | `clis.json` |
 | `other` | `other_sources.json` |
 
-Any key may be omitted. The operation is **idempotent** — names already present in the
-registry are not overwritten. A log line is printed for each type showing how many entries
-were added.
+Any key may be omitted. Each entry is checked against all three registry files (URLs are
+compared as exact strings) and has one of four outcomes:
+
+| Outcome | When | What is printed |
+|---|---|---|
+| **Written** | Neither the name nor the URL is registered yet | `Registered N <key> URL(s): [...]` |
+| **Skipped, already registered** | The URL is already in any registry file under another name, or in another file | `Skipped <key> '<name>': <url> is already registered in <file> as '<held name>'.` |
+| **Name clash, kept** | The name is already in the target file with a different URL. The old entry is kept and the new URL is not registered | `WARNING: ... kept <old>, did not register <new>.` |
+| **Unchanged** | The name and URL are already in the target file | Nothing for that entry. If every entry is unchanged: `No new <key> URLs to register (all already present).` |
+
+No aliases are written: a URL that is already registered keeps its existing name. The
+operation is **idempotent** — re-running with the same JSON changes nothing.
+
+**Unreadable registry file.** If a registry file cannot be read or parsed, or does not hold
+a JSON object (an empty file, invalid JSON, a JSON array), a `WARNING` naming it is printed.
+It then counts as `{}` for the duplicate check and is never written. Entries whose target
+file is unreadable are not registered, unless their URL is already held in a readable file,
+which is reported as "Skipped, already registered". The run carries on with the other
+entries. The same applies when a replacement URL is registered at the blocked-source prompt.
+
+**Source Registry notes for the worker.** After pre-registration, the coordinator builds one
+note for each approved entry that did not end up under the requested name in the requested
+key's file:
+- registered under another name or in another file: the note gives that file and name and
+  tells the worker to use that name.
+- not registered (name clash or unreadable file): the note says the URL is not in the
+  Source Registry but the owner approved it for this task.
+
+The notes are appended to the task text under a `## Source Registry notes` heading, so every
+hop's prompt includes them, and they are printed to the console. When every entry is
+registered as requested, the task text is unchanged.
 
 **Example** — register a new library and an "other" reference before running a task:
 
@@ -65,9 +93,12 @@ uv run --with claude-agent-sdk python -m coordinator "Fetch and summarise the ht
   --approved-urls '{"libraries": {"httpx-changelog": "https://www.python-httpx.org/changelog/"}}'
 ```
 
-The coordinator will write `httpx-changelog` into `servers/docs_fetcher/libraries.json`
-before invoking the Developer worker, so `fetch_docs` / `add_library` calls for that name
-succeed without an interactive pause.
+If neither the name `httpx-changelog` nor its URL is registered yet, the coordinator writes
+it into `servers/docs_fetcher/libraries.json` before invoking the Developer worker, so the
+worker can fetch it under that name without an interactive pause. If the URL is already
+registered under another name, or the name is taken by a different URL, nothing is written
+and the worker gets a Source Registry note that names the entry to use, or says that the
+URL is approved for this task without being registered.
 
 ## Output path conventions
 

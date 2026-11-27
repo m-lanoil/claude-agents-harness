@@ -63,6 +63,7 @@ Before taking ANY action on a new task, run through this checklist in order.
    - **Infrastructure**: Use `uv`. Store tools in `./servers/`. Use `fastmcp` (v3) with `FastMCP`.
    - **Worker/Tool-Building**: Extend before creating. Get explicit approval before editing `server.py` or running `claude mcp add`. Worker drafts must satisfy all items in `workers/WORKER_STANDARDS.md`.
    - **Security**: Confirm before any delete, format, or system-level command.
+   - **Source Registry**: Before registering a URL (including `--approved-urls`), check every registry file and pick the file by the `workers/WORKER_STANDARDS.md` Source Registry table.
    - **Verification**: Dry Run before registering any tool. Log all changes: server history in `logs/[server].md`, worker gap fixes in `logs/worker_updates.md`, new entries in `logs/TOOL_LOG.md` index.
 4. **Server freshness check**: Automated by a weekly launchd job (`scripts/check_server_freshness.py`, Mondays 9am). Check `logs/SERVER_FRESHNESS_ALERTS.md` — if the latest entry is dated within the past 7 days and marked **STALE**, confirm against the Audited table in `logs/TOOL_LOG.md`: run the **Server Freshness Protocol** only for servers whose latest Audited (or Created) timestamp there is still more than 30 days old. A later Audited row or a manual **RESOLVED** note clears the alert. Otherwise skip.
 5. **Markdown length check**: Run `scripts/check_markdown_length.py` to refresh. Check `logs/MARKDOWN_LENGTH_ALERTS.md` — if any rule markdown is flagged **OVER_LIMIT**, trim it before proceeding.

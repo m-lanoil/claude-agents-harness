@@ -530,6 +530,72 @@ def test_run_preregisters_urls_before_the_first_worker_call(env, monkeypatch):
     assert seen == [('{"other": {"a": "https://x.y"}}', 0)]
 
 
+def _run_one_hop_with_urls(env, approved_urls):
+    env.worker_script = [("d1", "complete")]
+    env.validator_script = [PASS]
+    env.inputs = ["yes"]
+    _run(env, workers="developer", output=str(env.final), sections="", approved_urls=approved_urls)
+    return env.worker_calls()[0]["prompt"]
+
+
+def test_run_passes_source_registry_notes_when_a_placement_differs(env, capsys, monkeypatch):
+    approved = {
+        "libraries": {"pytest": "https://docs.pytest.org/en/stable/", "same": "https://s"},
+        "other": {"spec": "https://o", "taken": "https://new"},
+    }
+    placements = {
+        "libraries": {
+            "pytest": ("libraries.json", "pytest_docs"),   # different name
+            "same": ("libraries.json", "same"),            # as requested: no note
+        },
+        "other": {
+            "spec": ("libraries.json", "spec"),            # different file
+            "taken": None,                                 # not registered
+        },
+    }
+    monkeypatch.setattr(orchestrator, "_preregister_urls", lambda s: placements)
+    prompt = _run_one_hop_with_urls(env, json.dumps(approved))
+
+    lines = [
+        "- libraries 'pytest' (https://docs.pytest.org/en/stable/): already registered in "
+        "libraries.json as 'pytest_docs'; use that name.",
+        "- other 'spec' (https://o): already registered in libraries.json as 'spec'; use that name.",
+        "- other 'taken' (https://new): not in the Source Registry",
+    ]
+    assert "## Source Registry notes" in prompt
+    for line in lines:
+        assert line in prompt
+    assert "approved this URL for this task" in prompt
+    assert "'same'" not in prompt
+    out = capsys.readouterr().out
+    assert "Source Registry notes:" in out
+    for line in lines:
+        assert line in out
+
+
+def test_run_task_text_unchanged_when_no_placement_differs(env, capsys, monkeypatch):
+    approved = {"libraries": {"lib": "https://l"}}
+    monkeypatch.setattr(
+        orchestrator, "_preregister_urls", lambda s: {"libraries": {"lib": ("libraries.json", "lib")}}
+    )
+    prompt = _run_one_hop_with_urls(env, json.dumps(approved))
+    assert "Task:\nthe task\n\nExpected output:" in prompt
+    assert "Source Registry notes" not in prompt
+    assert "Source Registry notes" not in capsys.readouterr().out
+
+
+def test_run_note_names_existing_entry_for_url_registered_under_another_name(env, tmp_path, monkeypatch):
+    fetcher = tmp_path / "fetcher"
+    fetcher.mkdir()
+    url = "https://docs.pytest.org/en/stable/"
+    (fetcher / "libraries.json").write_text(json.dumps({"pytest_docs": url}), encoding="utf-8")
+    before = (fetcher / "libraries.json").read_text(encoding="utf-8")
+    monkeypatch.setattr(orchestrator, "_DOCS_FETCHER_DIR", fetcher)
+    prompt = _run_one_hop_with_urls(env, json.dumps({"libraries": {"pytest": url}}))
+    assert (fetcher / "libraries.json").read_text(encoding="utf-8") == before  # no alias written
+    assert f"- libraries 'pytest' ({url}): already registered in libraries.json as 'pytest_docs'" in prompt
+
+
 def test_run_failure_logs_the_whole_chain(env, capsys):
     env.inputs = ["abort"]
     _run(env, workers="architect,developer", output=str(env.final), sections="Summary")
