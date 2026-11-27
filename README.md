@@ -49,7 +49,7 @@ From "Proven (evidence)" in [`STATUS.md`](STATUS.md), last reviewed 2026-11-26. 
 | A checker can verify a pipeline run's artifacts, ordering and the human gate | `scripts/check_pipeline_run.py` | — |
 | Five workers are defined | `workers/*/CLAUDE.md` | — |
 | Runtime state is excluded from version control; templates are tracked | `.gitignore`, `*_TEMPLATE.*`, `*.template.json` | — |
-| Build-out history: 171 commits | `git rev-list --count 2862621` (e4f93d5 to 2862621; a snapshot) | 2026-03-30 to 2026-11-26 |
+| Build-out history: 156 commits | `git rev-list --count e285f4e` (e4f93d5 to e285f4e; a snapshot) | 2026-03-30 to 2026-11-26 |
 | `docs_fetcher` has offline tests | 174 passed, `servers/docs_fetcher/tests/` | — |
 | All seven maintenance scripts have offline tests; servers, hooks, config templates and coordinator are covered by 988 passing tests | `scripts/tests/`, `servers/*/tests/`, `tests/`, `coordinator/tests/`, `scripts/run_tests.py` | Run 2026-11-26 |
 | Write denies and sandboxed Bash blocked test writes from the worker folders | Owner's Track-record entries | 2026-11-07 |
@@ -77,7 +77,7 @@ Setup, operating modes, current state, the build-out timeline and design rationa
 
 ## Credits
 
-5-phase pipeline contributed by Bao Nguyen (@BaoTNguyen) (f203d78, e1d54b4, cb9688b).
+5-phase pipeline contributed by Bao Nguyen (@BaoTNguyen) (3f62161, 2aaba4b, 1bb5a21).
 
 ## Author
 
